@@ -7,8 +7,8 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
-import { ref, set, get } from 'firebase/database';
-import { auth, database } from '../config/firebaseConfig';
+import { auth, firestore } from '../config/firebaseConfig';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -56,10 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await updateProfile(user, { displayName: name });
 
       // Store additional driver info in Realtime Database
-      await set(ref(database, `drivers/${user.uid}`), {
-        email: email,
-        name: name,
-        phone: phone,
+      // CHANGED: Firestore save
+      await setDoc(doc(firestore, 'drivers', user.uid), {
+        email,
+        name,
+        phone,
         role: 'driver',
         createdAt: new Date().toISOString(),
       });
@@ -73,10 +74,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
       // Verify user is a driver
-      const driverRef = ref(database, `drivers/${userCredential.user.uid}`);
-      const snapshot = await get(driverRef);
+      // CHANGED: Firestore read
+      const driverDoc = await getDoc(doc(firestore, 'drivers', userCredential.user.uid));
 
-      if (!snapshot.exists()) {
+      if (!driverDoc.exists()) {
         await signOut(auth);
         throw new Error('This account is not registered as a driver');
       }

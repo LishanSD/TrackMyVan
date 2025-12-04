@@ -1,11 +1,7 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getDatabase } from 'firebase/database';
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getFirestore } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: 'AIzaSyDolAPtFY1WT8JSjnpqz2bd8ltwphNz2G0',
   authDomain: 'trackmyvan-80c52.firebaseapp.com',
@@ -23,7 +19,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 // Initialize Realtime Database
-const database = getDatabase(app);
+const firestore = getFirestore(app);
 
-export { auth, database };
+export { auth, firestore };
 export default app;
