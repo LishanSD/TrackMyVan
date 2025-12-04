@@ -1,229 +1,219 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// CHANGED: Removed all nativewind className usage and replaced with StyleSheet
+
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  StyleSheet,
+} from 'react-native';
+import { useAuth } from '../../src/context/AuthContext';
+import { theme } from '../../src/theme/theme';
 
 export default function SettingsScreen() {
+  const { user, logout } = useAuth();
+  const [loading, setLoading] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await logout();
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.container}>
-          {/* Header */}
-          <Text style={styles.headerTitle}>Settings</Text>
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.innerContainer}>
+        {/* Header */}
+        {/* CHANGED: Replaced className props with style */}
+        <Text style={[styles.headerText, { color: theme.colors.text.primary }]}>Settings</Text>
 
-          {/* Account Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Account</Text>
-            <View style={styles.card}>
-              <TouchableOpacity style={[styles.settingItem, styles.borderBottom]}>
-                <View>
-                  <Text style={styles.itemTitle}>Profile</Text>
-                  <Text style={styles.itemSubtitle}>Manage your profile information</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
+        {/* Profile Section */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
+            Profile Information
+          </Text>
 
-              <TouchableOpacity style={styles.settingItem}>
-                <View>
-                  <Text style={styles.itemTitle}>Child Information</Text>
-                  <Text style={styles.itemSubtitle}>Update child details</Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.infoBlock}>
+            <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Name</Text>
+            <Text style={[styles.value, { color: theme.colors.text.primary }]}>
+              {user?.displayName || 'Not set'}
+            </Text>
           </View>
 
-          {/* Notifications Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Notifications</Text>
-            <View style={styles.card}>
-              {/* Push Toggle - ON state */}
-              <TouchableOpacity style={[styles.settingItem, styles.borderBottom]}>
-                <View>
-                  <Text style={styles.itemTitle}>Push Notifications</Text>
-                  <Text style={styles.itemSubtitle}>Pickup and drop-off alerts</Text>
-                </View>
-                <View style={styles.toggleTrackOn}>
-                  <View style={styles.toggleThumb} />
-                </View>
-              </TouchableOpacity>
-
-              {/* SMS Toggle - OFF state */}
-              <TouchableOpacity style={styles.settingItem}>
-                <View>
-                  <Text style={styles.itemTitle}>SMS Notifications</Text>
-                  <Text style={styles.itemSubtitle}>Receive SMS updates</Text>
-                </View>
-                <View style={styles.toggleTrackOff}>
-                  <View style={styles.toggleThumb} />
-                </View>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.infoBlock}>
+            <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Email</Text>
+            <Text style={[styles.value, { color: theme.colors.text.primary }]}>
+              {user?.email || 'Not set'}
+            </Text>
           </View>
+        </View>
 
-          {/* App Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionHeader}>App</Text>
-            <View style={styles.card}>
-              <TouchableOpacity style={[styles.settingItem, styles.borderBottom]}>
-                <Text style={styles.itemTitle}>Privacy Policy</Text>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
+        {/* Account Settings */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
+            Account Settings
+          </Text>
 
-              <TouchableOpacity style={[styles.settingItem, styles.borderBottom]}>
-                <Text style={styles.itemTitle}>Terms of Service</Text>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Edit profile feature coming soon')}>
+            <Text style={{ color: theme.colors.text.primary }}>Edit Profile</Text>
+          </TouchableOpacity>
 
-              <TouchableOpacity style={styles.settingItem}>
-                <Text style={styles.itemTitle}>About</Text>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* App Version */}
-          <View style={styles.appVersionContainer}>
-            <Text style={styles.appVersionText}>TrackMyVan Parent</Text>
-            <Text style={styles.appVersionText}>Version 1.0.0</Text>
-          </View>
-
-          {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton}>
-            <Text style={styles.logoutButtonText}>Log Out</Text>
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Change password feature coming soon')}>
+            <Text style={{ color: theme.colors.text.primary }}>Change Password</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        {/* App Settings */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
+
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}>
+            <Text style={{ color: theme.colors.text.primary }}>Notifications</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Privacy settings coming soon')}>
+            <Text style={{ color: theme.colors.text.primary }}>Privacy</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* About */}
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>About</Text>
+
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('TrackMyVan', 'Version 1.0.0')}>
+            <Text style={{ color: theme.colors.text.primary }}>App Version</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Terms & Conditions coming soon')}>
+            <Text style={{ color: theme.colors.text.primary }}>Terms & Conditions</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.cardButton, { borderColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Privacy Policy coming soon')}>
+            <Text style={{ color: theme.colors.text.primary }}>Privacy Policy</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Logout Button */}
+        <TouchableOpacity
+          style={[styles.logoutButton, { backgroundColor: theme.colors.error }]}
+          onPress={handleLogout}
+          disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.logoutText}>Logout</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Version Info */}
+        <Text style={[styles.versionText, { color: theme.colors.text.light }]}>
+          TrackMyVan Parent App v1.0.0
+        </Text>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  // SafeAreaView (className="flex-1 bg-gray-50")
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f9fafb', // bg-gray-50
-  },
-  // ScrollView (className="flex-1")
-  scrollView: {
-    flex: 1,
-  },
-  // View (className="p-6")
+  // CHANGED: Replacing flex-1
   container: {
-    padding: 24, // p-6
+    flex: 1,
   },
-  // Header Title (className="mb-6 text-3xl font-bold text-gray-900")
-  headerTitle: {
-    marginBottom: 24, // mb-6
-    fontSize: 30, // text-3xl
+  innerContainer: {
+    padding: theme.spacing.lg,
+  },
+
+  // Header
+  headerText: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#111827', // text-gray-900
+    marginBottom: theme.spacing.lg,
   },
-  // Section Wrapper (className="mb-6")
-  section: {
-    marginBottom: 24, // mb-6
-  },
-  // Section Header (className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500")
-  sectionHeader: {
-    marginBottom: 12, // mb-3
-    fontSize: 12, // text-xs
-    fontWeight: '600', // font-semibold
-    textTransform: 'uppercase', // uppercase
-    letterSpacing: 1.5, // tracking-wider
-    color: '#6b7280', // text-gray-500
-  },
-  // Card Container (className="overflow-hidden rounded-2xl bg-white shadow-sm")
+
+  // Cards
   card: {
-    overflow: 'hidden',
-    borderRadius: 16, // rounded-2xl
-    backgroundColor: '#ffffff', // bg-white
-    shadowColor: '#000', // shadow-sm
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1, // Android shadow
+    marginBottom: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
   },
-  // Setting Item TouchableOpacity (className="flex-row items-center justify-between p-6 active:bg-gray-50")
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 24, // p-6
-    // Note: active:bg-gray-50 is a touch interaction style, often handled by `underlayColor` on TouchableHighlight or similar.
-  },
-  // Separator (className="border-b border-gray-200")
-  borderBottom: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb', // border-gray-200
-  },
-  // Item Title (className="text-base font-medium text-gray-900")
-  itemTitle: {
-    fontSize: 16, // text-base
-    fontWeight: '500', // font-medium
-    color: '#111827', // text-gray-900
-  },
-  // Item Subtitle (className="mt-1 text-sm text-gray-500")
-  itemSubtitle: {
-    marginTop: 4, // mt-1
-    fontSize: 14, // text-sm
-    color: '#6b7280', // text-gray-500
-  },
-  // Chevron (className="text-gray-400")
-  chevron: {
+  cardTitle: {
     fontSize: 18,
-    color: '#9ca3af', // text-gray-400
+    fontWeight: '600',
+    marginBottom: theme.spacing.sm,
   },
 
-  // Toggle Track ON (className="h-7 w-12 items-end justify-center rounded-full bg-blue-600 px-1")
-  toggleTrackOn: {
-    height: 28, // h-7
-    width: 48, // w-12
-    justifyContent: 'center',
-    alignItems: 'flex-end', // items-end
-    borderRadius: 14, // half of height
-    backgroundColor: '#2563eb', // bg-blue-600
-    paddingHorizontal: 4, // px-1 (approx)
+  // Text blocks
+  infoBlock: {
+    marginBottom: theme.spacing.md,
   },
-  // Toggle Track OFF (className="h-7 w-12 justify-center rounded-full bg-gray-200 px-1")
-  toggleTrackOff: {
-    height: 28, // h-7
-    width: 48, // w-12
-    justifyContent: 'center',
-    alignItems: 'flex-start', // items-start (to mimic the off state)
-    borderRadius: 14,
-    backgroundColor: '#e5e7eb', // bg-gray-200
-    paddingHorizontal: 4, // px-1 (approx)
+  label: {
+    fontSize: 14,
+    marginBottom: 4,
   },
-  // Toggle Thumb (className="h-5 w-5 rounded-full bg-white")
-  toggleThumb: {
-    height: 20, // h-5
-    width: 20, // w-5
-    borderRadius: 10,
-    backgroundColor: '#ffffff', // bg-white
+  value: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 
-  // App Version Container (className="mb-4 mt-8 items-center")
-  appVersionContainer: {
-    marginBottom: 16, // mb-4
-    marginTop: 32, // mt-8
+  // Buttons inside cards
+  cardButton: {
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    borderTopWidth: 1,
+  },
+
+  // Logout
+  logoutButton: {
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
     alignItems: 'center',
   },
-  // App Version Text (className="text-xs text-gray-400")
-  appVersionText: {
-    fontSize: 12, // text-xs
-    color: '#9ca3af', // text-gray-400
+  logoutText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  // Logout Button (className="mt-4 rounded-xl bg-red-50 py-4 active:bg-red-100")
-  logoutButton: {
-    marginTop: 16, // mt-4
-    borderRadius: 12, // rounded-xl
-    backgroundColor: '#fef2f2', // bg-red-50
-    paddingVertical: 16, // py-4
-    // Note: active:bg-red-100 is a touch interaction style
-  },
-  // Logout Button Text (className="text-center font-semibold text-red-600")
-  logoutButtonText: {
+
+  // Version text
+  versionText: {
     textAlign: 'center',
-    fontWeight: '600', // font-semibold
-    color: '#dc2626', // text-red-600
+    marginTop: theme.spacing.lg,
+    fontSize: 13,
   },
 });

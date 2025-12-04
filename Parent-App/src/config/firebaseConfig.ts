@@ -10,7 +10,7 @@ const firebaseConfig = {
   projectId: 'trackmyvan-80c52',
   storageBucket: 'trackmyvan-80c52.firebasestorage.app',
   messagingSenderId: '303143354137',
-  appId: '1:303143354137:web:a86740506f6aa00d560f88',
+  appId: '1:303143354137:web:e522f18a4d0b575c560f88',
 };
 
 // Initialize Firebase
