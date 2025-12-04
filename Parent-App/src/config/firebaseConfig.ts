@@ -1,12 +1,11 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from 'firebase/app';
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: 'AIzaSyDolAPtFY1WT8JSjnpqz2bd8ltwphNz2G0',
   authDomain: 'trackmyvan-80c52.firebaseapp.com',
+  databaseURL: 'https://trackmyvan-80c52-default-rtdb.asia-southeast1.firebasedatabase.app/',
   projectId: 'trackmyvan-80c52',
   storageBucket: 'trackmyvan-80c52.firebasestorage.app',
   messagingSenderId: '303143354137',
@@ -15,3 +14,12 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Initialize Auth - React Native persistence is automatically handled
+const auth = getAuth(app);
+
+// Initialize Realtime Database
+const firestore = getFirestore(app);
+
+export { auth, firestore };
+export default app;
