@@ -17,7 +17,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#6b7280',
       }}>
       <Tabs.Screen
-        name="index"
+        name="dashboard"
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📊</Text>,
