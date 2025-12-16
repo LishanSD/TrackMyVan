@@ -7,12 +7,20 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../src/context/AuthContext';
 import { firestore } from '../../src/config/firebaseConfig';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
+
+interface Location {
+  latitude: number;
+  longitude: number;
+  address?: string;
+}
 
 interface Student {
   id: string;
@@ -20,6 +28,8 @@ interface Student {
   age: string;
   grade: string;
   parentEmail: string;
+  homeLocation: Location;
+  schoolLocation: Location;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
 }
@@ -29,6 +39,10 @@ export default function StudentsScreen() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>('all');
+
+  // Detail view modal
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -40,7 +54,6 @@ export default function StudentsScreen() {
       snapshot.forEach((doc) => {
         studentsData.push({ id: doc.id, ...doc.data() } as Student);
       });
-      // Sort: pending first, then approved, then by creation date
       studentsData.sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (a.status !== 'pending' && b.status === 'pending') return 1;
@@ -84,6 +97,11 @@ export default function StudentsScreen() {
         },
       },
     ]);
+  };
+
+  const viewStudentDetails = (student: Student) => {
+    setSelectedStudent(student);
+    setDetailModalVisible(true);
   };
 
   const getFilteredStudents = () => {
@@ -178,7 +196,11 @@ export default function StudentsScreen() {
             </View>
           ) : (
             filteredStudents.map((student) => (
-              <View key={student.id} style={styles.studentCard}>
+              <TouchableOpacity
+                key={student.id}
+                style={styles.studentCard}
+                onPress={() => viewStudentDetails(student)}
+                activeOpacity={0.7}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.studentName}>{student.name}</Text>
                   <View
@@ -209,7 +231,7 @@ export default function StudentsScreen() {
                   <Text style={styles.valueSmall}>{student.parentEmail}</Text>
                 </View>
 
-                {student.status === 'pending' && (
+                {student.status === 'pending' ? (
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
                       style={styles.rejectButton}
@@ -222,12 +244,143 @@ export default function StudentsScreen() {
                       <Text style={styles.approveButtonText}>Approve</Text>
                     </TouchableOpacity>
                   </View>
+                ) : (
+                  <Text style={styles.tapHint}>Tap to view locations</Text>
                 )}
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* Detail View Modal */}
+      <Modal
+        visible={detailModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setDetailModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedStudent && (
+                <>
+                  <View style={styles.detailHeader}>
+                    <Text style={styles.detailTitle}>{selectedStudent.name}</Text>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: getStatusColor(selectedStudent.status) + '20' },
+                      ]}>
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: getStatusColor(selectedStudent.status) },
+                        ]}>
+                        {getStatusText(selectedStudent.status)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Student Info</Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Age:</Text>
+                      <Text style={styles.value}>{selectedStudent.age} years</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Grade:</Text>
+                      <Text style={styles.value}>{selectedStudent.grade}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Parent Info</Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Email:</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentEmail}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Home Location</Text>
+                    <MapView
+                      provider={PROVIDER_GOOGLE}
+                      style={styles.detailMap}
+                      initialRegion={{
+                        ...selectedStudent.homeLocation,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      scrollEnabled={false}
+                      zoomEnabled={false}>
+                      <Marker
+                        coordinate={selectedStudent.homeLocation}
+                        pinColor={theme.colors.primary}
+                        title="Home"
+                      />
+                    </MapView>
+                    <Text style={styles.coordinatesText}>
+                      Lat: {selectedStudent.homeLocation.latitude.toFixed(6)}, Lng:{' '}
+                      {selectedStudent.homeLocation.longitude.toFixed(6)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>School Location</Text>
+                    <MapView
+                      provider={PROVIDER_GOOGLE}
+                      style={styles.detailMap}
+                      initialRegion={{
+                        ...selectedStudent.schoolLocation,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      scrollEnabled={false}
+                      zoomEnabled={false}>
+                      <Marker
+                        coordinate={selectedStudent.schoolLocation}
+                        pinColor={theme.colors.secondary}
+                        title="School"
+                      />
+                    </MapView>
+                    <Text style={styles.coordinatesText}>
+                      Lat: {selectedStudent.schoolLocation.latitude.toFixed(6)}, Lng:{' '}
+                      {selectedStudent.schoolLocation.longitude.toFixed(6)}
+                    </Text>
+                  </View>
+
+                  {selectedStudent.status === 'pending' && (
+                    <View style={styles.modalActionButtons}>
+                      <TouchableOpacity
+                        style={styles.modalRejectButton}
+                        onPress={() => {
+                          handleReject(selectedStudent.id);
+                          setDetailModalVisible(false);
+                        }}>
+                        <Text style={styles.modalRejectButtonText}>Reject</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.modalApproveButton}
+                        onPress={() => {
+                          handleApprove(selectedStudent.id);
+                          setDetailModalVisible(false);
+                        }}>
+                        <Text style={styles.modalApproveButtonText}>Approve</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setDetailModalVisible(false)}>
+                    <Text style={styles.closeButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -409,5 +562,99 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  tapHint: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
+    fontStyle: 'italic',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  detailModalContent: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    maxHeight: '90%',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  detailTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  detailSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  detailSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  detailMap: {
+    height: 200,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.sm,
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  modalActionButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  modalRejectButton: {
+    flex: 1,
+    backgroundColor: theme.colors.error + '20',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+  },
+  modalRejectButtonText: {
+    color: theme.colors.error,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  modalApproveButton: {
+    flex: 1,
+    backgroundColor: theme.colors.success,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+  },
+  modalApproveButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  closeButton: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  closeButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

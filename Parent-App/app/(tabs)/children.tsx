@@ -11,10 +11,17 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../src/context/AuthContext';
 import { firestore } from '../../src/config/firebaseConfig';
 import { collection, addDoc, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
+
+interface Location {
+  latitude: number;
+  longitude: number;
+  address?: string;
+}
 
 interface Child {
   id: string;
@@ -24,8 +31,12 @@ interface Child {
   driverEmail: string;
   driverName: string;
   status: 'pending' | 'approved' | 'rejected';
+  homeLocation: Location;
+  schoolLocation: Location;
   createdAt: string;
 }
+
+type LocationType = 'home' | 'school' | null;
 
 export default function ChildrenScreen() {
   const { user } = useAuth();
@@ -40,6 +51,25 @@ export default function ChildrenScreen() {
   const [childName, setChildName] = useState('');
   const [childAge, setChildAge] = useState('');
   const [childGrade, setChildGrade] = useState('');
+  const [homeLocation, setHomeLocation] = useState<Location | null>(null);
+  const [schoolLocation, setSchoolLocation] = useState<Location | null>(null);
+
+  // Map modal state
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+  const [selectingLocation, setSelectingLocation] = useState<LocationType>(null);
+  const [tempMarker, setTempMarker] = useState<Location | null>(null);
+
+  // Detail view modal
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
+
+  // Default map region (Sri Lanka - Colombo)
+  const defaultRegion = {
+    latitude: 6.9271,
+    longitude: 79.8612,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -90,6 +120,34 @@ export default function ChildrenScreen() {
     }
   };
 
+  const openLocationPicker = (type: LocationType) => {
+    setSelectingLocation(type);
+    const currentLocation = type === 'home' ? homeLocation : schoolLocation;
+    setTempMarker(currentLocation);
+    setMapModalVisible(true);
+  };
+
+  const confirmLocation = () => {
+    if (!tempMarker) {
+      Alert.alert('Error', 'Please select a location on the map');
+      return;
+    }
+
+    if (selectingLocation === 'home') {
+      setHomeLocation(tempMarker);
+    } else if (selectingLocation === 'school') {
+      setSchoolLocation(tempMarker);
+    }
+
+    setMapModalVisible(false);
+    setTempMarker(null);
+  };
+
+  const handleMapPress = (event: any) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    setTempMarker({ latitude, longitude });
+  };
+
   const addChild = async () => {
     if (!childName.trim() || !childAge.trim() || !childGrade.trim()) {
       Alert.alert('Error', 'Please fill all fields');
@@ -98,6 +156,11 @@ export default function ChildrenScreen() {
 
     if (!driverFound) {
       Alert.alert('Error', 'Please search and select a driver first');
+      return;
+    }
+
+    if (!homeLocation || !schoolLocation) {
+      Alert.alert('Error', 'Please select both home and school locations');
       return;
     }
 
@@ -111,6 +174,8 @@ export default function ChildrenScreen() {
         driverId: driverFound.id,
         driverEmail: driverFound.email,
         driverName: driverFound.name,
+        homeLocation,
+        schoolLocation,
         status: 'pending',
         createdAt: new Date().toISOString(),
       });
@@ -129,6 +194,13 @@ export default function ChildrenScreen() {
     setChildGrade('');
     setSearchDriverEmail('');
     setDriverFound(null);
+    setHomeLocation(null);
+    setSchoolLocation(null);
+  };
+
+  const viewChildDetails = (child: Child) => {
+    setSelectedChild(child);
+    setDetailModalVisible(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -176,7 +248,11 @@ export default function ChildrenScreen() {
             </View>
           ) : (
             children.map((child) => (
-              <View key={child.id} style={styles.childCard}>
+              <TouchableOpacity
+                key={child.id}
+                style={styles.childCard}
+                onPress={() => viewChildDetails(child)}
+                activeOpacity={0.7}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.childName}>{child.name}</Text>
                   <View
@@ -207,11 +283,8 @@ export default function ChildrenScreen() {
                   <Text style={styles.value}>{child.driverName}</Text>
                 </View>
 
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Email:</Text>
-                  <Text style={styles.valueSmall}>{child.driverEmail}</Text>
-                </View>
-              </View>
+                <Text style={styles.tapHint}>Tap to view locations</Text>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -254,7 +327,7 @@ export default function ChildrenScreen() {
 
               {driverFound && (
                 <View style={styles.driverFoundCard}>
-                  <Text style={styles.driverFoundTitle}>Driver Found!</Text>
+                  <Text style={styles.driverFoundTitle}>✓ Driver Found!</Text>
                   <Text style={styles.driverFoundText}>Name: {driverFound.name}</Text>
                   <Text style={styles.driverFoundText}>Email: {driverFound.email}</Text>
                   <Text style={styles.driverFoundText}>Phone: {driverFound.phone}</Text>
@@ -283,6 +356,31 @@ export default function ChildrenScreen() {
                 onChangeText={setChildGrade}
               />
 
+              {/* Locations Section */}
+              <Text style={styles.sectionTitle}>3. Locations</Text>
+
+              <TouchableOpacity
+                style={styles.locationButton}
+                onPress={() => openLocationPicker('home')}>
+                <Text style={styles.locationButtonLabel}>Home Location</Text>
+                <Text style={styles.locationButtonText}>
+                  {homeLocation
+                    ? `✓ Selected (${homeLocation.latitude.toFixed(4)}, ${homeLocation.longitude.toFixed(4)})`
+                    : 'Tap to select on map'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.locationButton}
+                onPress={() => openLocationPicker('school')}>
+                <Text style={styles.locationButtonLabel}>School Location</Text>
+                <Text style={styles.locationButtonText}>
+                  {schoolLocation
+                    ? `✓ Selected (${schoolLocation.latitude.toFixed(4)}, ${schoolLocation.longitude.toFixed(4)})`
+                    : 'Tap to select on map'}
+                </Text>
+              </TouchableOpacity>
+
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -296,6 +394,170 @@ export default function ChildrenScreen() {
                   <Text style={styles.submitButtonText}>Add Child</Text>
                 </TouchableOpacity>
               </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Map Selection Modal */}
+      <Modal
+        visible={mapModalVisible}
+        animationType="slide"
+        onRequestClose={() => setMapModalVisible(false)}>
+        <SafeAreaView style={styles.mapModalContainer}>
+          <View style={styles.mapHeader}>
+            <Text style={styles.mapTitle}>
+              Select {selectingLocation === 'home' ? 'Home' : 'School'} Location
+            </Text>
+            <Text style={styles.mapSubtitle}>Tap on the map to place marker</Text>
+          </View>
+
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={
+              tempMarker
+                ? {
+                    ...tempMarker,
+                    latitudeDelta: 0.05,
+                    longitudeDelta: 0.05,
+                  }
+                : defaultRegion
+            }
+            onPress={handleMapPress}>
+            {tempMarker && (
+              <Marker
+                coordinate={tempMarker}
+                pinColor={
+                  selectingLocation === 'home' ? theme.colors.primary : theme.colors.secondary
+                }
+              />
+            )}
+          </MapView>
+
+          <View style={styles.mapButtons}>
+            <TouchableOpacity
+              style={styles.mapCancelButton}
+              onPress={() => {
+                setMapModalVisible(false);
+                setTempMarker(null);
+              }}>
+              <Text style={styles.mapCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mapConfirmButton} onPress={confirmLocation}>
+              <Text style={styles.mapConfirmButtonText}>Confirm Location</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Detail View Modal */}
+      <Modal
+        visible={detailModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setDetailModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedChild && (
+                <>
+                  <View style={styles.detailHeader}>
+                    <Text style={styles.detailTitle}>{selectedChild.name}</Text>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: getStatusColor(selectedChild.status) + '20' },
+                      ]}>
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: getStatusColor(selectedChild.status) },
+                        ]}>
+                        {getStatusText(selectedChild.status)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Student Info</Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Age:</Text>
+                      <Text style={styles.value}>{selectedChild.age} years</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Grade:</Text>
+                      <Text style={styles.value}>{selectedChild.grade}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Driver Info</Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Name:</Text>
+                      <Text style={styles.value}>{selectedChild.driverName}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Email:</Text>
+                      <Text style={styles.valueSmall}>{selectedChild.driverEmail}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Home Location</Text>
+                    <MapView
+                      provider={PROVIDER_GOOGLE}
+                      style={styles.detailMap}
+                      initialRegion={{
+                        ...selectedChild.homeLocation,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      scrollEnabled={false}
+                      zoomEnabled={false}>
+                      <Marker
+                        coordinate={selectedChild.homeLocation}
+                        pinColor={theme.colors.primary}
+                        title="Home"
+                      />
+                    </MapView>
+                    <Text style={styles.coordinatesText}>
+                      Lat: {selectedChild.homeLocation.latitude.toFixed(6)}, Lng:{' '}
+                      {selectedChild.homeLocation.longitude.toFixed(6)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>School Location</Text>
+                    <MapView
+                      provider={PROVIDER_GOOGLE}
+                      style={styles.detailMap}
+                      initialRegion={{
+                        ...selectedChild.schoolLocation,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }}
+                      scrollEnabled={false}
+                      zoomEnabled={false}>
+                      <Marker
+                        coordinate={selectedChild.schoolLocation}
+                        pinColor={theme.colors.secondary}
+                        title="School"
+                      />
+                    </MapView>
+                    <Text style={styles.coordinatesText}>
+                      Lat: {selectedChild.schoolLocation.latitude.toFixed(6)}, Lng:{' '}
+                      {selectedChild.schoolLocation.longitude.toFixed(6)}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setDetailModalVisible(false)}>
+                    <Text style={styles.closeButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -415,6 +677,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.border,
     marginVertical: theme.spacing.sm,
   },
+  tapHint: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
+    fontStyle: 'italic',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -480,6 +749,24 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: 4,
   },
+  locationButton: {
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
+  locationButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  locationButtonText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+  },
   modalButtons: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
@@ -505,6 +792,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  mapModalContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  mapHeader: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  mapTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  mapSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginTop: 4,
+  },
+  map: {
+    flex: 1,
+  },
+  mapButtons: {
+    flexDirection: 'row',
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  mapCancelButton: {
+    flex: 1,
+    backgroundColor: theme.colors.border,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+  },
+  mapCancelButtonText: {
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  mapConfirmButton: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+  },
+  mapConfirmButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  detailModalContent: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    maxHeight: '90%',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  detailTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  detailSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  detailSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  detailMap: {
+    height: 200,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.sm,
+  },
+  coordinatesText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  closeButton: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  closeButtonText: {
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 16,
