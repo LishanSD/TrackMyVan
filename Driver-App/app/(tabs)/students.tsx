@@ -228,7 +228,11 @@ export default function StudentsScreen() {
 
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Parent:</Text>
-                  <Text style={styles.valueSmall}>{student.parentEmail}</Text>
+                  <Text style={styles.valueSmall}>{student.parentName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Phone:</Text>
+                  <Text style={styles.valueSmall}>{student.parentPhone}</Text>
                 </View>
 
                 {student.status === 'pending' ? (
@@ -296,11 +300,18 @@ export default function StudentsScreen() {
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Parent Info</Text>
                     <View style={styles.infoRow}>
+                      <Text style={styles.label}>Name:</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentName}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Phone:</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentPhone}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
                       <Text style={styles.label}>Email:</Text>
                       <Text style={styles.valueSmall}>{selectedStudent.parentEmail}</Text>
                     </View>
                   </View>
-
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Home Location</Text>
                     <MapView
