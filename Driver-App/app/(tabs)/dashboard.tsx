@@ -20,6 +20,7 @@ import {
   collection,
   query,
   where,
+  getDoc,
   getDocs,
   serverTimestamp,
   FieldValue, // <-- ADDED for serverTimestamp type consistency
@@ -239,8 +240,8 @@ export default function DashboardScreen() {
     try {
       const locationData = await getCurrentLocationData();
       const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      // Determine status updates
 
-      // Use the StudentStatus keys here. This is why the interface was needed.
       let updateKey: keyof StudentStatus;
       let newVanStatus: Student['currentVanStatus'];
       let newOverallStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
@@ -264,20 +265,41 @@ export default function DashboardScreen() {
           tripId: currentTripId,
         },
         currentStatus: newOverallStatus,
-      };
+      }; // --- TRANSACTION 1: Update the /childStatus/{childId}/dates/{date} document ---
 
-      // 1. Update the /childStatus/{childId}/dates/{date} document
       const childStatusDocRef = doc(firestore, 'childStatus', childId, 'dates', date);
-      await setDoc(childStatusDocRef, updateData, { merge: true });
+      await setDoc(childStatusDocRef, updateData, { merge: true }); // --- TRANSACTION 2: Update the 'children' array in /trips/{currentTripId} ---
 
-      // 2. Update the local student list state
+      const tripDocRef = doc(firestore, 'trips', currentTripId);
+      const tripDocSnapshot = await getDoc(tripDocRef);
+
+      if (tripDocSnapshot.exists()) {
+        const tripData = tripDocSnapshot.data();
+        const existingChildrenArray = tripData.children || []; // Get the existing array
+
+        // Create the new updated array
+        const updatedChildrenArray = existingChildrenArray.map(
+          (child: { childId: string; status: string }) => {
+            if (child.childId === childId) {
+              // Found the student, update their status
+              return {
+                childId: childId,
+                status: newVanStatus, // e.g., 'IN_VAN' or 'DROPPED_OFF'
+              };
+            }
+            return child; // Return other children unchanged
+          }
+        );
+
+        // Write the full updated array back to the trip document
+        await updateDoc(tripDocRef, {
+          children: updatedChildrenArray,
+        });
+      } // 3. Update the local student list state (for UI refresh)
+
       setStudents((prevStudents) =>
         prevStudents.map((s) => (s.id === childId ? { ...s, currentVanStatus: newVanStatus } : s))
       );
-
-      // 3. Optional: Update the child's status in the current trip document (for easy reporting)
-      // This is a more advanced array update, so we'll keep it simple for now,
-      // but acknowledge that it might be needed later.
 
       Alert.alert(
         'Success',
