@@ -170,6 +170,7 @@ export default function ChildrenScreen() {
         age: childAge.trim(),
         grade: childGrade.trim(),
         parentId: user?.uid,
+        parentEmail: user?.email,
         parentName: userProfile?.name || '',
         parentPhone: userProfile?.phone || '',
         driverId: driverFound.id,
@@ -283,6 +284,10 @@ export default function ChildrenScreen() {
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Driver:</Text>
                   <Text style={styles.value}>{child.driverName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Phone:</Text>
+                  <Text style={styles.value}>{child.driverPhone}</Text>
                 </View>
 
                 <Text style={styles.tapHint}>Tap to view locations</Text>
@@ -498,6 +503,10 @@ export default function ChildrenScreen() {
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Name:</Text>
                       <Text style={styles.value}>{selectedChild.driverName}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Phone:</Text>
+                      <Text style={styles.value}>{selectedChild.driverPhone}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Email:</Text>
