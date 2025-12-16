@@ -119,6 +119,7 @@ interface StudentListProps {
 const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tripType }) => {
   // Determine the next action and status based on trip type and current status
   const getActionDetails = (student: Student) => {
+    // --- MORNING TRIP LOGIC ---
     if (tripType === 'MORNING') {
       if (student.currentVanStatus === 'NOT_PICKED_UP') {
         return {
@@ -134,20 +135,22 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
           style: styles.dropoffButton,
         };
       }
-    }
+      // If Morning trip and status is DROPPED_OFF, it falls through to Complete.
+    } // --- AFTERNOON TRIP LOGIC ---
 
     if (tripType === 'AFTERNOON') {
-      if (
-        student.currentVanStatus === 'DROPPED_OFF' ||
-        student.currentVanStatus === 'NOT_PICKED_UP'
-      ) {
-        // Assuming 'DROPPED_OFF' means dropped at school, ready for afternoon pickup
+      // Check 1: Ready for School Pick Up
+      // We assume NOT_PICKED_UP means they need to be picked up from school.
+      // If the status is DROPPED_OFF (meaning dropped at home), they are COMPLETE.
+      if (student.currentVanStatus === 'NOT_PICKED_UP') {
         return {
           label: 'Pick Up (School)',
           action: 'PICKUP' as ChildActionEvent,
           style: styles.pickupButton,
         };
       }
+
+      // Check 2: Ready for Home Drop Off
       if (student.currentVanStatus === 'IN_VAN') {
         return {
           label: 'Drop Off (Home)',
@@ -155,7 +158,9 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
           style: styles.dropoffButton,
         };
       }
-    }
+    } // --- DEFAULT: COMPLETE ---
+    // If the status is DROPPED_OFF (for morning or afternoon),
+    // or any other unhandled state, the student is complete for this trip.
 
     return { label: 'Complete', action: null, style: styles.completeButton };
   };
