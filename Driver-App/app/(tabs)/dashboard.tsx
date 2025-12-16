@@ -32,6 +32,7 @@ import { firestore, database } from '../../src/config/firebaseConfig';
 import { useAuth } from '../../src/context/AuthContext';
 import { theme } from '../../src/theme/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, AppStateStatus } from 'react-native';
 
 // --- TYPE DEFINITIONS ---
 type TripType = 'MORNING' | 'AFTERNOON';
@@ -222,6 +223,35 @@ export default function DashboardScreen() {
   const [tripType, setTripType] = useState<TripType>('MORNING');
 
   const driverId = user?.uid;
+
+  useEffect(() => {
+    // 1. Check if tracking is already active when component mounts (e.g., from a crash recovery)
+    // This is useful if tracking started in the background task but component remounted.
+    const checkTaskStatus = async () => {
+      if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+        setIsTripActive(true);
+        setTripStatusText('Trip Active. Location tracking in progress.');
+      }
+    };
+    checkTaskStatus();
+
+    // 2. Set up AppState listener
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      // If the app goes from the background/inactive to active,
+      // and we were trying to start a trip, we might want to re-check the location task.
+      if (isTripActive && nextAppState === 'active') {
+        // Optional: If the driver tried to start the trip while minimized,
+        // you might attempt to restart the location task here if it failed initially.
+        // However, for simplicity, we recommend forcing the user to press START while active.
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isTripActive]); // Depend on isTripActive
 
   // Function to get the current timestamp and location data
   const getCurrentLocationData = async () => {
