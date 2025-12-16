@@ -10,8 +10,17 @@ import {
 import { auth, firestore } from '../config/firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
+interface UserProfile {
+  email: string;
+  name: string;
+  phone: string;
+  role: 'driver';
+  createdAt: string;
+}
+
 interface AuthContextType {
   user: User | null;
+  userProfile: UserProfile | null;
   loading: boolean;
   signUp: (email: string, password: string, name: string, phone: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -20,6 +29,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  userProfile: null,
   loading: true,
   signUp: async () => {},
   signIn: async () => {},
@@ -36,11 +46,30 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+
+      // Fetch user profile from Firestore when user is authenticated
+      if (user) {
+        try {
+          const driverDoc = await getDoc(doc(firestore, 'drivers', user.uid));
+          if (driverDoc.exists()) {
+            setUserProfile(driverDoc.data() as UserProfile);
+          } else {
+            setUserProfile(null);
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          setUserProfile(null);
+        }
+      } else {
+        setUserProfile(null);
+      }
+
       setLoading(false);
     });
 
@@ -55,15 +84,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Update user profile with name
       await updateProfile(user, { displayName: name });
 
-      // Store additional driver info in Realtime Database
-      // CHANGED: Firestore save
-      await setDoc(doc(firestore, 'drivers', user.uid), {
+      // Store additional driver info in Firestore
+      const profileData: UserProfile = {
         email,
         name,
         phone,
         role: 'driver',
         createdAt: new Date().toISOString(),
-      });
+      };
+
+      await setDoc(doc(firestore, 'drivers', user.uid), profileData);
+
+      // Set the profile in state immediately after signup
+      setUserProfile(profileData);
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -74,13 +107,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
       // Verify user is a driver
-      // CHANGED: Firestore read
       const driverDoc = await getDoc(doc(firestore, 'drivers', userCredential.user.uid));
 
       if (!driverDoc.exists()) {
         await signOut(auth);
         throw new Error('This account is not registered as a driver');
       }
+
+      // Set the profile in state
+      setUserProfile(driverDoc.data() as UserProfile);
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -89,13 +124,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       await signOut(auth);
+      setUserProfile(null);
     } catch (error: any) {
       throw new Error(error.message);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signUp, signIn, logout }}>
+    <AuthContext.Provider value={{ user, userProfile, loading, signUp, signIn, logout }}>
       {children}
     </AuthContext.Provider>
   );
