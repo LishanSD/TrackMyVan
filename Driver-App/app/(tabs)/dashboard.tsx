@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
-  TouchableOpacity,
+  // TouchableOpacity removed
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -23,7 +23,7 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
-  FieldValue, // <-- ADDED for serverTimestamp type consistency
+  FieldValue,
 } from 'firebase/firestore';
 // Realtime DB Imports
 import { ref, set } from 'firebase/database';
@@ -38,7 +38,6 @@ import { AppState, AppStateStatus } from 'react-native';
 type TripType = 'MORNING' | 'AFTERNOON';
 type ChildActionEvent = 'PICKUP' | 'DROPOFF';
 
-// Location structure for recording events
 interface LocationRecord {
   status: 'COMPLETED' | 'PENDING';
   time: FieldValue;
@@ -49,7 +48,6 @@ interface LocationRecord {
   tripId: string;
 }
 
-// The missing interface for the Firestore document /childStatus/{childId}/dates/{date}
 interface StudentStatus {
   morningPickup: LocationRecord;
   schoolDropoff: LocationRecord;
@@ -63,7 +61,6 @@ interface Student {
   name: string;
   driverId: string;
   parentId: string;
-  // This status reflects their current state relative to the van
   currentVanStatus: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF';
   homeLocation: { latitude: number; longitude: number };
   schoolLocation: { latitude: number; longitude: number };
@@ -81,20 +78,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (data) {
     const { locations } = data as { locations: Location.LocationObject[] };
     const latestLocation = locations[0];
-
     const driverId = await AsyncStorage.getItem('driverId');
 
     if (!driverId) {
-      console.error('Driver ID not found in AsyncStorage for background task. Stopping updates.');
+      console.error('Driver ID not found. Stopping updates.');
       return;
     }
 
     try {
-      // ----------------------------------------------------
-      // REALTIME DATABASE UPDATE: /locations/{driverId}
-      // ----------------------------------------------------
       const vanLocationRef = ref(database, `locations/${driverId}`);
-
       const locationData = {
         lat: latestLocation.coords.latitude,
         lng: latestLocation.coords.longitude,
@@ -102,7 +94,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         bearing: latestLocation.coords.heading || 0,
         timestamp: Date.now(),
       };
-
       await set(vanLocationRef, locationData);
     } catch (e) {
       console.error('Error sending location to Realtime DB:', e);
@@ -118,9 +109,10 @@ interface StudentListProps {
 }
 
 const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tripType }) => {
-  // Determine the next action and status based on trip type and current status
+  // State to track which specific student button is being pressed
+  const [pressedStudentId, setPressedStudentId] = useState<string | null>(null);
+
   const getActionDetails = (student: Student) => {
-    // --- MORNING TRIP LOGIC ---
     if (tripType === 'MORNING') {
       if (student.currentVanStatus === 'NOT_PICKED_UP') {
         return {
@@ -136,13 +128,9 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
           style: styles.dropoffButton,
         };
       }
-      // If Morning trip and status is DROPPED_OFF, it falls through to Complete.
-    } // --- AFTERNOON TRIP LOGIC ---
+    }
 
     if (tripType === 'AFTERNOON') {
-      // Check 1: Ready for School Pick Up
-      // We assume NOT_PICKED_UP means they need to be picked up from school.
-      // If the status is DROPPED_OFF (meaning dropped at home), they are COMPLETE.
       if (student.currentVanStatus === 'NOT_PICKED_UP') {
         return {
           label: 'Pick Up (School)',
@@ -150,8 +138,6 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
           style: styles.pickupButton,
         };
       }
-
-      // Check 2: Ready for Home Drop Off
       if (student.currentVanStatus === 'IN_VAN') {
         return {
           label: 'Drop Off (Home)',
@@ -159,9 +145,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
           style: styles.dropoffButton,
         };
       }
-    } // --- DEFAULT: COMPLETE ---
-    // If the status is DROPPED_OFF (for morning or afternoon),
-    // or any other unhandled state, the student is complete for this trip.
+    }
 
     return { label: 'Complete', action: null, style: styles.completeButton };
   };
@@ -171,6 +155,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 
   const renderStudent = (student: Student) => {
     const { label, action, style } = getActionDetails(student);
+    const isPressed = pressedStudentId === student.id;
 
     return (
       <View key={student.id} style={styles.studentCard}>
@@ -181,11 +166,16 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
           </Text>
         </View>
         {action ? (
-          <TouchableOpacity
-            style={[styles.statusButton, style]}
-            onPress={() => action && onUpdateStatus(student.id, action)}>
-            <Text style={styles.statusButtonText}>{label}</Text>
-          </TouchableOpacity>
+          // CONVERTED: TouchableWithoutFeedback
+          <TouchableWithoutFeedback
+            onPress={() => action && onUpdateStatus(student.id, action)}
+            onPressIn={() => setPressedStudentId(student.id)}
+            onPressOut={() => setPressedStudentId(null)}>
+            {/* Style applied to the View, NOT the Touchable */}
+            <View style={[styles.statusButton, style, isPressed && { opacity: 0.5 }]}>
+              <Text style={styles.statusButtonText}>{label}</Text>
+            </View>
+          </TouchableWithoutFeedback>
         ) : (
           <View style={[styles.statusButton, styles.completeButton]}>
             <Text style={styles.statusButtonText}>{label}</Text>
@@ -217,7 +207,11 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
-  const [isPressing, setIsPressing] = useState(false);
+
+  // Press states for visual feedback
+  const [isPressingStartEnd, setIsPressingStartEnd] = useState(false);
+  const [pressedTripType, setPressedTripType] = useState<TripType | null>(null);
+
   const [students, setStudents] = useState<Student[]>([]);
   const [currentTripId, setCurrentTripId] = useState<string | null>(null);
   const [tripType, setTripType] = useState<TripType>('MORNING');
@@ -225,8 +219,6 @@ export default function DashboardScreen() {
   const driverId = user?.uid;
 
   useEffect(() => {
-    // 1. Check if tracking is already active when component mounts (e.g., from a crash recovery)
-    // This is useful if tracking started in the background task but component remounted.
     const checkTaskStatus = async () => {
       if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
         setIsTripActive(true);
@@ -235,25 +227,16 @@ export default function DashboardScreen() {
     };
     checkTaskStatus();
 
-    // 2. Set up AppState listener
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      // If the app goes from the background/inactive to active,
-      // and we were trying to start a trip, we might want to re-check the location task.
-      if (isTripActive && nextAppState === 'active') {
-        // Optional: If the driver tried to start the trip while minimized,
-        // you might attempt to restart the location task here if it failed initially.
-        // However, for simplicity, we recommend forcing the user to press START while active.
-      }
+      // Logic for app state changes if needed
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-
     return () => {
       subscription.remove();
     };
-  }, [isTripActive]); // Depend on isTripActive
+  }, [isTripActive]);
 
-  // Function to get the current timestamp and location data
   const getCurrentLocationData = async () => {
     const location = await Location.getCurrentPositionAsync({});
     return {
@@ -265,7 +248,6 @@ export default function DashboardScreen() {
     };
   };
 
-  // --- CHILD STATUS UPDATE HANDLER ---
   const handleUpdateChildStatus = async (childId: string, action: ChildActionEvent) => {
     if (!currentTripId || !driverId) {
       Alert.alert('Error', 'No active trip found.');
@@ -274,8 +256,7 @@ export default function DashboardScreen() {
 
     try {
       const locationData = await getCurrentLocationData();
-      const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      // Determine status updates
+      const date = new Date().toISOString().split('T')[0];
 
       let updateKey: keyof StudentStatus;
       let newVanStatus: Student['currentVanStatus'];
@@ -286,7 +267,6 @@ export default function DashboardScreen() {
         newVanStatus = 'IN_VAN';
         newOverallStatus = 'IN_VAN';
       } else {
-        // DROPOFF
         updateKey = tripType === 'MORNING' ? 'schoolDropoff' : 'homeDropoff';
         newVanStatus = 'DROPPED_OFF';
         newOverallStatus = tripType === 'MORNING' ? 'AT_SCHOOL' : 'AT_HOME';
@@ -300,37 +280,28 @@ export default function DashboardScreen() {
           tripId: currentTripId,
         },
         currentStatus: newOverallStatus,
-      }; // --- TRANSACTION 1: Update the /childStatus/{childId}/dates/{date} document ---
+      };
 
       const childStatusDocRef = doc(firestore, 'childStatus', childId, 'dates', date);
-      await setDoc(childStatusDocRef, updateData, { merge: true }); // --- TRANSACTION 2: Update the 'children' array in /trips/{currentTripId} ---
+      await setDoc(childStatusDocRef, updateData, { merge: true });
 
       const tripDocRef = doc(firestore, 'trips', currentTripId);
       const tripDocSnapshot = await getDoc(tripDocRef);
 
       if (tripDocSnapshot.exists()) {
         const tripData = tripDocSnapshot.data();
-        const existingChildrenArray = tripData.children || []; // Get the existing array
-
-        // Create the new updated array
+        const existingChildrenArray = tripData.children || [];
         const updatedChildrenArray = existingChildrenArray.map(
           (child: { childId: string; status: string }) => {
             if (child.childId === childId) {
-              // Found the student, update their status
-              return {
-                childId: childId,
-                status: newVanStatus, // e.g., 'IN_VAN' or 'DROPPED_OFF'
-              };
+              return { childId: childId, status: newVanStatus };
             }
-            return child; // Return other children unchanged
+            return child;
           }
         );
 
-        // Write the full updated array back to the trip document
-        await updateDoc(tripDocRef, {
-          children: updatedChildrenArray,
-        });
-      } // 3. Update the local student list state (for UI refresh)
+        await updateDoc(tripDocRef, { children: updatedChildrenArray });
+      }
 
       setStudents((prevStudents) =>
         prevStudents.map((s) => (s.id === childId ? { ...s, currentVanStatus: newVanStatus } : s))
@@ -346,62 +317,54 @@ export default function DashboardScreen() {
     }
   };
 
-  // --- START TRIP HANDLER (No change) ---
   const handleStartTrip = async () => {
     if (!driverId) {
       Alert.alert('Error', 'Driver ID not found. Please log in again.');
       return;
     }
-
     const permissionsGranted = await requestPermissions();
     if (!permissionsGranted) return;
 
     try {
-      // 0. Fetch students for the driver
       const studentsQuery = query(
         collection(firestore, 'students'),
         where('driverId', '==', driverId),
         where('status', '==', 'approved')
       );
       const studentSnapshot = await getDocs(studentsQuery);
-
       const fetchedStudents: Student[] = studentSnapshot.docs.map(
         (doc) =>
           ({
             id: doc.id,
-            currentVanStatus: 'NOT_PICKED_UP', // Initial status when trip starts
+            currentVanStatus: 'NOT_PICKED_UP',
             ...doc.data(),
           }) as Student
-      ); // Cast to Student type
+      );
 
       setStudents(fetchedStudents);
 
-      // 1. Record Trip Start Time in Firestore
       const tripId = driverId + '_' + Date.now();
       const tripDocRef = doc(firestore, 'trips', tripId);
-
       const initialChildrenStatus = fetchedStudents.map((s) => ({
         childId: s.id,
-        status: 'NOT_PICKED_UP', // Status relative to the van
+        status: 'NOT_PICKED_UP',
       }));
-
       const today = new Date().toISOString().split('T')[0];
 
       await setDoc(tripDocRef, {
         driverId: driverId,
         date: today,
-        type: tripType, // Use state
+        type: tripType,
         status: 'IN_PROGRESS',
         startTime: serverTimestamp(),
         endTime: null,
         children: initialChildrenStatus,
       });
 
-      setCurrentTripId(tripId); // Save trip ID to state
+      setCurrentTripId(tripId);
       await AsyncStorage.setItem('driverId', driverId);
-      await AsyncStorage.setItem('currentTripId', tripId); // Save for background task/End Trip
+      await AsyncStorage.setItem('currentTripId', tripId);
 
-      // 2. Start Background Location Tracking
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.BestForNavigation,
         distanceInterval: 10,
@@ -423,27 +386,19 @@ export default function DashboardScreen() {
     }
   };
 
-  // --- END TRIP HANDLER (No change) ---
   const handleEndTrip = async () => {
     if (!driverId || !currentTripId) return;
-
     try {
-      // 1. Stop Background Location Tracking
       if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
       }
-
-      // 2. Update Trip Status in Firestore
       await updateDoc(doc(firestore, 'trips', currentTripId), {
         status: 'COMPLETED',
         endTime: serverTimestamp(),
       });
-
-      // 3. Clear stored state
       await AsyncStorage.removeItem('currentTripId');
       setCurrentTripId(null);
       setStudents([]);
-
       setIsTripActive(false);
       setTripStatusText('No active trip');
       Alert.alert('Trip Ended', 'Location tracking has stopped.');
@@ -453,9 +408,7 @@ export default function DashboardScreen() {
     }
   };
 
-  // --- LOCATION PERMISSIONS & CHECK (No change) ---
   const requestPermissions = async () => {
-    // ... (Keep existing code) ...
     const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
     if (foregroundStatus !== 'granted') {
       Alert.alert(
@@ -469,7 +422,7 @@ export default function DashboardScreen() {
       if (backgroundStatus !== 'granted') {
         Alert.alert(
           'Background Location Required',
-          'Background location permission is essential for real-time tracking when the app is minimized. Please grant it in your phone settings.'
+          'Background location permission is essential for real-time tracking.'
         );
         return false;
       }
@@ -477,14 +430,6 @@ export default function DashboardScreen() {
     return true;
   };
 
-  // --- CLEANUP ON UNMOUNT (No change) ---
-  useEffect(() => {
-    return () => {
-      // ... (Keep existing cleanup code) ...
-    };
-  }, []);
-
-  // Conditional styling and rendering logic
   const actionButtonStyle = isTripActive ? styles.actionButtonEnd : styles.actionButtonStart;
   const actionButtonTitle = isTripActive ? 'End Trip' : 'Start Trip';
   const actionButtonText = isTripActive ? 'Tap to stop tracking' : 'Tap to begin tracking';
@@ -493,7 +438,7 @@ export default function DashboardScreen() {
 
   const buttonStyle = {
     ...(isTripActive ? styles.actionButtonEnd : styles.actionButtonStart),
-    opacity: isPressing ? 0.8 : 1.0,
+    opacity: isPressingStartEnd ? 0.8 : 1.0,
   };
 
   return (
@@ -502,7 +447,6 @@ export default function DashboardScreen() {
         <View style={styles.container}>
           <Text style={styles.dashboardTitle}>Dashboard</Text>
 
-          {/* Trip Status Card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
             <Text style={[styles.cardText, { color: tripStatusColor, fontWeight: 'bold' }]}>
@@ -510,49 +454,66 @@ export default function DashboardScreen() {
             </Text>
           </View>
 
-          {/* Trip Type Selector (Only visible before trip starts) */}
+          {/* Trip Type Selector - CONVERTED to TouchableWithoutFeedback */}
           {!isTripActive && (
             <View style={styles.tripTypeContainer}>
               <Text style={styles.tripTypeLabel}>Select Trip:</Text>
               <View style={styles.tripTypeButtons}>
-                <TouchableOpacity
-                  style={[styles.tripTypeButton, tripType === 'MORNING' && styles.tripTypeActive]}
-                  onPress={() => setTripType('MORNING')}>
-                  <Text
+                {/* Morning Button */}
+                <TouchableWithoutFeedback
+                  onPress={() => setTripType('MORNING')}
+                  onPressIn={() => setPressedTripType('MORNING')}
+                  onPressOut={() => setPressedTripType(null)}>
+                  <View
                     style={[
-                      styles.tripTypeButtonText,
-                      tripType === 'MORNING' && styles.tripTypeActiveText,
+                      styles.tripTypeButton,
+                      tripType === 'MORNING' && styles.tripTypeActive,
+                      pressedTripType === 'MORNING' && { opacity: 0.5 },
                     ]}>
-                    Morning
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tripTypeButton, tripType === 'AFTERNOON' && styles.tripTypeActive]}
-                  onPress={() => setTripType('AFTERNOON')}>
-                  <Text
+                    <Text
+                      style={[
+                        styles.tripTypeButtonText,
+                        tripType === 'MORNING' && styles.tripTypeActiveText,
+                      ]}>
+                      Morning
+                    </Text>
+                  </View>
+                </TouchableWithoutFeedback>
+                {/* Afternoon Button - Note: No whitespace between Touchables */}
+                <TouchableWithoutFeedback
+                  onPress={() => setTripType('AFTERNOON')}
+                  onPressIn={() => setPressedTripType('AFTERNOON')}
+                  onPressOut={() => setPressedTripType(null)}>
+                  <View
                     style={[
-                      styles.tripTypeButtonText,
-                      tripType === 'AFTERNOON' && styles.tripTypeActiveText,
+                      styles.tripTypeButton,
+                      tripType === 'AFTERNOON' && styles.tripTypeActive,
+                      pressedTripType === 'AFTERNOON' && { opacity: 0.5 },
                     ]}>
-                    Afternoon
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.tripTypeButtonText,
+                        tripType === 'AFTERNOON' && styles.tripTypeActiveText,
+                      ]}>
+                      Afternoon
+                    </Text>
+                  </View>
+                </TouchableWithoutFeedback>
               </View>
             </View>
           )}
 
-          {/* Quick Actions (Start/End Trip) */}
+          {/* Quick Actions - Already converted */}
           <TouchableWithoutFeedback
             onPress={actionHandler}
-            onPressIn={() => setIsPressing(true)}
-            onPressOut={() => setIsPressing(false)}>
+            onPressIn={() => setIsPressingStartEnd(true)}
+            onPressOut={() => setIsPressingStartEnd(false)}>
             <View style={buttonStyle}>
               <Text style={styles.actionButtonTitle}>{actionButtonTitle}</Text>
               <Text style={styles.actionButtonText}>{actionButtonText}</Text>
             </View>
           </TouchableWithoutFeedback>
 
-          {/* Student List (Only visible when trip is active) */}
           {isTripActive && students.length > 0 && (
             <StudentList
               students={students}
@@ -566,7 +527,7 @@ export default function DashboardScreen() {
   );
 }
 
-// --- STYLES (UPDATED) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.colors.background },
   scrollView: { flex: 1 },
@@ -599,8 +560,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   cardText: { fontSize: 14, color: theme.colors.text.secondary },
-
-  // Trip Type Selector Styles
   tripTypeContainer: {
     marginBottom: theme.spacing.md,
     padding: theme.spacing.md,
@@ -614,10 +573,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     marginBottom: theme.spacing.sm,
   },
-  tripTypeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
+  tripTypeButtons: { flexDirection: 'row', justifyContent: 'space-around' },
   tripTypeButton: {
     flex: 1,
     paddingVertical: theme.spacing.sm,
@@ -628,20 +584,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  tripTypeActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  tripTypeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-  },
-  tripTypeActiveText: {
-    color: theme.colors.surface, // White text
-  },
-
-  // Action Button Styles (Kept)
+  tripTypeActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  tripTypeButtonText: { fontSize: 16, fontWeight: '600', color: theme.colors.text.primary },
+  tripTypeActiveText: { color: theme.colors.surface },
   actionButtonStart: {
     borderRadius: theme.borderRadius.lg,
     backgroundColor: theme.colors.primary,
@@ -677,11 +622,7 @@ const styles = StyleSheet.create({
     color: theme.colors.surface,
   },
   actionButtonText: { fontSize: 14, color: '#fee2e2' },
-
-  // Student List Styles
-  listContainer: {
-    marginTop: theme.spacing.lg,
-  },
+  listContainer: { marginTop: theme.spacing.lg },
   listTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -712,19 +653,9 @@ const styles = StyleSheet.create({
       android: { elevation: 1 },
     }),
   },
-  studentInfo: {
-    flex: 1,
-  },
-  studentName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-  },
-  studentStatus: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    marginTop: 2,
-  },
+  studentInfo: { flex: 1 },
+  studentName: { fontSize: 16, fontWeight: '600', color: theme.colors.text.primary },
+  studentStatus: { fontSize: 12, color: theme.colors.text.secondary, marginTop: 2 },
   statusButton: {
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
@@ -732,18 +663,8 @@ const styles = StyleSheet.create({
     minWidth: 90,
     alignItems: 'center',
   },
-  pickupButton: {
-    backgroundColor: theme.colors.secondary, // green
-  },
-  dropoffButton: {
-    backgroundColor: theme.colors.warning, // amber
-  },
-  completeButton: {
-    backgroundColor: theme.colors.border, // gray-200
-  },
-  statusButtonText: {
-    color: theme.colors.surface, // white
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
+  pickupButton: { backgroundColor: theme.colors.secondary },
+  dropoffButton: { backgroundColor: theme.colors.warning },
+  completeButton: { backgroundColor: theme.colors.border },
+  statusButtonText: { color: theme.colors.surface, fontWeight: 'bold', fontSize: 12 },
 });
