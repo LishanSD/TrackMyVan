@@ -3,7 +3,7 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   Alert,
   Platform,
@@ -78,6 +78,7 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
+  const [isPressing, setIsPressing] = useState(false);
 
   const driverId = user?.uid;
 
@@ -184,6 +185,13 @@ export default function DashboardScreen() {
   const actionHandler = isTripActive ? handleEndTrip : handleStartTrip;
   const tripStatusColor = isTripActive ? theme.colors.success : theme.colors.text.secondary;
 
+  // Conditionally adjust the style based on active state AND pressed state
+  const buttonStyle = {
+    ...(isTripActive ? styles.actionButtonEnd : styles.actionButtonStart),
+    // When pressing, reduce opacity manually to simulate TouchableOpacity's default behavior
+    opacity: isPressing ? 0.8 : 1.0,
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
@@ -205,10 +213,16 @@ export default function DashboardScreen() {
           </View>
 
           {/* Quick Actions */}
-          <TouchableOpacity style={actionButtonStyle} onPress={actionHandler}>
-            <Text style={styles.actionButtonTitle}>{actionButtonTitle}</Text>
-            <Text style={styles.actionButtonText}>{actionButtonText}</Text>
-          </TouchableOpacity>
+          <TouchableWithoutFeedback
+            onPress={actionHandler}
+            onPressIn={() => setIsPressing(true)} // <-- Start pressed state
+            onPressOut={() => setIsPressing(false)} // <-- End pressed state (Works even after alert closes)
+          >
+            <View style={buttonStyle}>
+              <Text style={styles.actionButtonTitle}>{actionButtonTitle}</Text>
+              <Text style={styles.actionButtonText}>{actionButtonText}</Text>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
       </ScrollView>
     </SafeAreaView>
