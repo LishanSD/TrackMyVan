@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name,
         phone,
         role: 'parent',
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       });
     } catch (error: any) {
       throw new Error(error.message);

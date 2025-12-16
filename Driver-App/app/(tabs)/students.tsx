@@ -1,24 +1,231 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../src/context/AuthContext';
+import { firestore } from '../../src/config/firebaseConfig';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { theme } from '../../src/theme/theme';
+
+interface Student {
+  id: string;
+  name: string;
+  age: string;
+  grade: string;
+  parentEmail: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+}
 
 export default function StudentsScreen() {
+  const { user } = useAuth();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>('all');
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(collection(firestore, 'students'), where('driverId', '==', user.uid));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const studentsData: Student[] = [];
+      snapshot.forEach((doc) => {
+        studentsData.push({ id: doc.id, ...doc.data() } as Student);
+      });
+      // Sort: pending first, then approved, then by creation date
+      studentsData.sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (a.status !== 'pending' && b.status === 'pending') return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      setStudents(studentsData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleApprove = async (studentId: string) => {
+    try {
+      await updateDoc(doc(firestore, 'students', studentId), {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+      });
+      Alert.alert('Success', 'Student approved successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleReject = async (studentId: string) => {
+    Alert.alert('Confirm Rejection', 'Are you sure you want to reject this student request?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await updateDoc(doc(firestore, 'students', studentId), {
+              status: 'rejected',
+              rejectedAt: new Date().toISOString(),
+            });
+            Alert.alert('Success', 'Student request rejected');
+          } catch (error: any) {
+            Alert.alert('Error', error.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const getFilteredStudents = () => {
+    if (filter === 'all') return students;
+    return students.filter((s) => s.status === filter);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return theme.colors.success;
+      case 'pending':
+        return theme.colors.warning;
+      case 'rejected':
+        return theme.colors.error;
+      default:
+        return theme.colors.text.secondary;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const pendingCount = students.filter((s) => s.status === 'pending').length;
+  const approvedCount = students.filter((s) => s.status === 'approved').length;
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const filteredStudents = getFilteredStudents();
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.container}>
-          <Text style={styles.title}>Students</Text>
+          <Text style={styles.title}>My Students</Text>
 
-          <View style={styles.placeholderCard}>
-            <Text style={styles.placeholderText}>Student list will appear here</Text>
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{pendingCount}</Text>
+              <Text style={styles.statLabel}>Pending</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{approvedCount}</Text>
+              <Text style={styles.statLabel}>Approved</Text>
+            </View>
           </View>
 
-          {/* Sample placeholder for future student cards */}
-          <View style={styles.sampleCard}>
-            <Text style={styles.sampleCardText}>
-              Student cards with pickup/drop-off status will be listed here
-            </Text>
+          {/* Filter Tabs */}
+          <View style={styles.filterContainer}>
+            <TouchableOpacity
+              style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
+              onPress={() => setFilter('all')}>
+              <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+                All ({students.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterTab, filter === 'pending' && styles.filterTabActive]}
+              onPress={() => setFilter('pending')}>
+              <Text style={[styles.filterText, filter === 'pending' && styles.filterTextActive]}>
+                Pending ({pendingCount})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterTab, filter === 'approved' && styles.filterTabActive]}
+              onPress={() => setFilter('approved')}>
+              <Text style={[styles.filterText, filter === 'approved' && styles.filterTextActive]}>
+                Approved ({approvedCount})
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Student List */}
+          {filteredStudents.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                {filter === 'all' ? 'No students yet' : `No ${filter} students`}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                Students will appear here when parents add them
+              </Text>
+            </View>
+          ) : (
+            filteredStudents.map((student) => (
+              <View key={student.id} style={styles.studentCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.studentName}>{student.name}</Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(student.status) + '20' },
+                    ]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(student.status) }]}>
+                      {getStatusText(student.status)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Age:</Text>
+                  <Text style={styles.value}>{student.age} years</Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Grade:</Text>
+                  <Text style={styles.value}>{student.grade}</Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Parent:</Text>
+                  <Text style={styles.valueSmall}>{student.parentEmail}</Text>
+                </View>
+
+                {student.status === 'pending' && (
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() => handleReject(student.id)}>
+                      <Text style={styles.rejectButtonText}>Reject</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.approveButton}
+                      onPress={() => handleApprove(student.id)}>
+                      <Text style={styles.approveButtonText}>Approve</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -26,58 +233,181 @@ export default function StudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  // SafeAreaView (className="flex-1 bg-gray-50")
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb', // bg-gray-50
+    backgroundColor: theme.colors.background,
   },
-  // ScrollView (className="flex-1")
   scrollView: {
     flex: 1,
   },
-  // View (className="p-6")
   container: {
-    padding: 24, // p-6
+    padding: theme.spacing.lg,
   },
-  // Title Text (className="mb-6 text-3xl font-bold text-gray-900")
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
-    marginBottom: 24, // mb-6
-    fontSize: 30, // text-3xl
+    fontSize: 30,
     fontWeight: 'bold',
-    color: '#111827', // text-gray-900
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.lg,
   },
-  // Placeholder Card (className="rounded-2xl bg-white p-6 shadow-sm")
-  placeholderCard: {
-    borderRadius: 16, // rounded-2xl
-    backgroundColor: '#ffffff', // bg-white
-    padding: 24, // p-6
-    shadowColor: '#000', // shadow-sm
+  statsContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 1, // Android shadow
+    elevation: 1,
   },
-  // Placeholder Text (className="text-center text-base text-gray-500")
-  placeholderText: {
+  statNumber: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.sm,
+    padding: 4,
+    marginBottom: theme.spacing.lg,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    alignItems: 'center',
+    borderRadius: theme.borderRadius.sm,
+  },
+  filterTabActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  filterText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  emptyCard: {
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.colors.text.light,
     textAlign: 'center',
-    fontSize: 16, // text-base
-    color: '#6b7280', // text-gray-500
   },
-  // Sample Placeholder Card (className="mt-4 rounded-xl bg-white p-4 shadow-sm")
-  sampleCard: {
-    marginTop: 16, // mt-4
-    borderRadius: 12, // rounded-xl
-    backgroundColor: '#ffffff', // bg-white
-    padding: 16, // p-4
-    shadowColor: '#000', // shadow-sm
+  studentCard: {
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 1, // Android shadow
+    elevation: 1,
   },
-  // Sample Card Text (className="text-sm text-gray-400")
-  sampleCardText: {
-    fontSize: 14, // text-sm
-    color: '#9ca3af', // text-gray-400
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  studentName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: theme.spacing.sm,
+  },
+  label: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    width: 80,
+    fontWeight: '500',
+  },
+  value: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  valueSmall: {
+    fontSize: 13,
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: theme.spacing.sm,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: theme.colors.error + '20',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+  },
+  rejectButtonText: {
+    color: theme.colors.error,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  approveButton: {
+    flex: 1,
+    backgroundColor: theme.colors.success,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+  },
+  approveButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
