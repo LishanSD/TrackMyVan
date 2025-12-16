@@ -1,8 +1,189 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
+// Firestore Imports (Kept for the trip record, which is still in Firestore)
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+// Realtime DB Imports <-- NEW IMPORTS
+import { ref, set } from 'firebase/database';
+// Import database (RTDB) and firestore (FS) from config
+import { firestore, database } from '../../src/config/firebaseConfig';
+import { useAuth } from '../../src/context/AuthContext';
+import { theme } from '../../src/theme/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// --- CONFIGURATION ---
+const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
+
+// --- BACKGROUND LOCATION TASK DEFINITION ---
+// Task to run in the background for continuous location updates
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+  if (error) {
+    console.error('Location Task Error:', error.message);
+    return;
+  }
+  if (data) {
+    const { locations } = data as { locations: Location.LocationObject[] };
+    const latestLocation = locations[0];
+
+    const driverId = await AsyncStorage.getItem('driverId');
+    if (!driverId) {
+      console.error('Driver ID not found in AsyncStorage for background task. Stopping updates.');
+      // Optionally, stop the location task if driverId is missing
+      // if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+      //     await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      // }
+      return;
+    }
+
+    try {
+      // ----------------------------------------------------
+      // REALTIME DATABASE UPDATE <-- MODIFIED
+      // Path: van_locations/{driverId}
+      // ----------------------------------------------------
+      const vanLocationRef = ref(database, `van_locations/${driverId}`);
+
+      const locationData = {
+        driverId: driverId,
+        latitude: latestLocation.coords.latitude,
+        longitude: latestLocation.coords.longitude,
+        speed: latestLocation.coords.speed,
+        timestamp: new Date().toISOString(), // Use ISO string for RTDB timestamps
+      };
+
+      // Use 'set' to overwrite the location data for this driver, giving us the latest update
+      await set(vanLocationRef, locationData);
+
+      console.log(
+        'Location sent to Realtime DB:',
+        latestLocation.coords.latitude,
+        latestLocation.coords.longitude
+      );
+    } catch (e) {
+      console.error('Error sending location to Realtime DB:', e);
+    }
+  }
+});
 
 export default function DashboardScreen() {
+  const { user } = useAuth();
+  const [isTripActive, setIsTripActive] = useState(false);
+  const [tripStatusText, setTripStatusText] = useState('No active trip');
+
+  const driverId = user?.uid;
+
+  // --- LOCATION PERMISSIONS & CHECK (No change) ---
+  const requestPermissions = async () => {
+    // ... (Keep existing code) ...
+    const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+    if (foregroundStatus !== 'granted') {
+      Alert.alert(
+        'Permission Denied',
+        'Foreground location permission is required to start the trip.'
+      );
+      return false;
+    }
+
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
+      const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+      if (backgroundStatus !== 'granted') {
+        Alert.alert(
+          'Background Location Required',
+          'Background location permission is essential for real-time tracking when the app is minimized. Please grant it in your phone settings.'
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // --- START TRIP HANDLER (No change, as the trip record stays in Firestore) ---
+  const handleStartTrip = async () => {
+    if (!driverId) {
+      Alert.alert('Error', 'Driver ID not found. Please log in again.');
+      return;
+    }
+
+    const permissionsGranted = await requestPermissions();
+    if (!permissionsGranted) return;
+
+    try {
+      // 1. Record Trip Start Time in Firestore (Keep this in Firestore)
+      const tripDocRef = doc(firestore, 'trips', driverId + '_' + Date.now());
+      await setDoc(tripDocRef, {
+        driverId: driverId,
+        startTime: serverTimestamp(),
+        status: 'active',
+      });
+
+      await AsyncStorage.setItem('driverId', driverId);
+      // 2. Start Background Location Tracking (Location task will use RTDB)
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.BestForNavigation,
+        distanceInterval: 10,
+        timeInterval: 5000,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: 'Van Tracking Active',
+          notificationBody: 'Your location is being shared with parents.',
+          notificationColor: theme.colors.primary,
+        },
+      });
+
+      setIsTripActive(true);
+      setTripStatusText('Trip Active. Location tracking in progress.');
+      Alert.alert('Trip Started', 'Real-time location sharing is now active.');
+    } catch (error) {
+      console.error('Error starting trip:', error);
+      Alert.alert('Error', 'Failed to start trip. Check logs.');
+    }
+  };
+
+  // --- END TRIP HANDLER (No change) ---
+  const handleEndTrip = async () => {
+    if (!driverId) return;
+
+    try {
+      // 1. Stop Background Location Tracking
+      if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      }
+
+      // 2. Update Trip Status in Firestore (Assumed logic)
+      // ...
+
+      setIsTripActive(false);
+      setTripStatusText('No active trip');
+      Alert.alert('Trip Ended', 'Location tracking has stopped.');
+    } catch (error) {
+      console.error('Error ending trip:', error);
+      Alert.alert('Error', 'Failed to stop trip tracking. Please check logs.');
+    }
+  };
+
+  // --- CLEANUP ON UNMOUNT (No change) ---
+  useEffect(() => {
+    return () => {
+      // ... (Keep existing cleanup code) ...
+    };
+  }, []);
+
+  // Conditional styling and rendering logic (No change)
+  const actionButtonStyle = isTripActive ? styles.actionButtonEnd : styles.actionButtonStart;
+  const actionButtonTitle = isTripActive ? 'End Trip' : 'Start Trip';
+  const actionButtonText = isTripActive ? 'Tap to stop tracking' : 'Tap to begin tracking';
+  const actionHandler = isTripActive ? handleEndTrip : handleStartTrip;
+  const tripStatusColor = isTripActive ? theme.colors.success : theme.colors.text.secondary;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
@@ -12,7 +193,9 @@ export default function DashboardScreen() {
           {/* Trip Status Card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
-            <Text style={styles.cardText}>No active trip</Text>
+            <Text style={[styles.cardText, { color: tripStatusColor, fontWeight: 'bold' }]}>
+              {tripStatusText}
+            </Text>
           </View>
 
           {/* Today's Summary Card */}
@@ -22,9 +205,9 @@ export default function DashboardScreen() {
           </View>
 
           {/* Quick Actions */}
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonTitle}>Start Trip</Text>
-            <Text style={styles.actionButtonText}>Tap to begin tracking</Text>
+          <TouchableOpacity style={actionButtonStyle} onPress={actionHandler}>
+            <Text style={styles.actionButtonTitle}>{actionButtonTitle}</Text>
+            <Text style={styles.actionButtonText}>{actionButtonText}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -32,74 +215,92 @@ export default function DashboardScreen() {
   );
 }
 
+// ... (Keep existing styles) ...
 const styles = StyleSheet.create({
-  // SafeAreaView (className="flex-1 bg-gray-50")
+  // ... (Keep existing styles) ...
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb', // gray-50
+    backgroundColor: theme.colors.background,
   },
-  // ScrollView (className="flex-1")
   scrollView: {
     flex: 1,
   },
-  // View (className="p-6")
   container: {
-    padding: 24, // p-6
+    padding: theme.spacing.lg,
   },
-  // Dashboard Title (className="mb-4 text-3xl font-bold text-gray-900")
   dashboardTitle: {
-    marginBottom: 16, // mb-4
-    fontSize: 30, // text-3xl
+    marginBottom: theme.spacing.md,
+    fontSize: 30,
     fontWeight: 'bold',
-    color: '#111827', // text-gray-900
+    color: theme.colors.text.primary,
   },
-  // Card (className="mb-4 rounded-2xl bg-white p-6 shadow-sm")
   card: {
-    marginBottom: 16, // mb-4
-    borderRadius: 16, // rounded-2xl
-    backgroundColor: '#ffffff', // bg-white
-    padding: 24, // p-6
-    shadowColor: '#000', // shadow-sm
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1, // Android shadow
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
-  // Card Title (className="mb-2 text-lg font-semibold text-gray-900")
   cardTitle: {
-    marginBottom: 8, // mb-2
-    fontSize: 18, // text-lg
-    fontWeight: '600', // font-semibold
-    color: '#111827', // text-gray-900
+    marginBottom: theme.spacing.xs,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
   },
-  // Card Text (className="text-sm text-gray-500")
   cardText: {
-    fontSize: 14, // text-sm
-    color: '#6b7280', // text-gray-500
+    fontSize: 14,
+    color: theme.colors.text.secondary,
   },
-  // Quick Actions Button (className="rounded-2xl bg-blue-600 p-6 shadow-md active:bg-blue-700")
-  actionButton: {
-    borderRadius: 16, // rounded-2xl
-    backgroundColor: '#2563eb', // bg-blue-600
-    padding: 24, // p-6
-    shadowColor: '#000', // shadow-md
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3, // Android shadow
-    // Note: React Native StyleSheet doesn't have an equivalent for 'active:bg-blue-700' directly.
-    // This is typically handled using state or the 'underlayColor' prop on a TouchableOpacity.
+  actionButtonStart: {
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
-  // Action Button Title (className="mb-2 text-lg font-semibold text-white")
+  actionButtonEnd: {
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.error,
+    padding: theme.spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
   actionButtonTitle: {
-    marginBottom: 8, // mb-2
-    fontSize: 18, // text-lg
-    fontWeight: '600', // font-semibold
-    color: '#ffffff', // text-white
+    marginBottom: theme.spacing.xs,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.surface,
   },
-  // Action Button Text (className="text-sm text-blue-100")
   actionButtonText: {
-    fontSize: 14, // text-sm
-    color: '#dbeafe', // text-blue-100
+    fontSize: 14,
+    color: '#fee2e2',
   },
 });
