@@ -39,7 +39,7 @@ interface Child {
 type LocationType = 'home' | 'school' | null;
 
 export default function ChildrenScreen() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -171,8 +171,11 @@ export default function ChildrenScreen() {
         grade: childGrade.trim(),
         parentId: user?.uid,
         parentEmail: user?.email,
+        parentName: userProfile?.name || '',
+        parentPhone: userProfile?.phone || '',
         driverId: driverFound.id,
         driverEmail: driverFound.email,
+        driverPhone: driverFound.phone,
         driverName: driverFound.name,
         homeLocation,
         schoolLocation,
@@ -281,6 +284,10 @@ export default function ChildrenScreen() {
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Driver:</Text>
                   <Text style={styles.value}>{child.driverName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.label}>Phone:</Text>
+                  <Text style={styles.value}>{child.driverPhone}</Text>
                 </View>
 
                 <Text style={styles.tapHint}>Tap to view locations</Text>
@@ -496,6 +503,10 @@ export default function ChildrenScreen() {
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Name:</Text>
                       <Text style={styles.value}>{selectedChild.driverName}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.label}>Phone:</Text>
+                      <Text style={styles.value}>{selectedChild.driverPhone}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Email:</Text>
