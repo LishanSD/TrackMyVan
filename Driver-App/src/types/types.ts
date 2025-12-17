@@ -69,6 +69,9 @@ export interface UserProfile {
   email: string;
   name: string;
   phone: string;
+  profilePic?: string;
+  vanModel?: string;
+  licensePlateNo?: string;
   role: 'driver';
   createdAt: string;
 }

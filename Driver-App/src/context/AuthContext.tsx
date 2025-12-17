@@ -7,8 +7,9 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
-import { auth, firestore } from '../config/firebaseConfig';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, firestore, storage } from '../config/firebaseConfig';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { UserProfile } from '../types/types';
 
 interface AuthContextType {
@@ -18,6 +19,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string, phone: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  uploadProfilePicture: (uri: string) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +30,8 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signIn: async () => {},
   logout: async () => {},
+  updateProfile: async () => {},
+  uploadProfilePicture: async () => '',
 });
 
 export const useAuth = () => {
@@ -123,8 +128,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const uploadProfilePicture = async (uri: string): Promise<string> => {
+    if (!user) {
+      throw new Error('User must be logged in to upload profile picture');
+    }
+
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // Validate file size (5MB limit)
+      if (blob.size > 5 * 1024 * 1024) {
+        throw new Error('Image size must be less than 5MB');
+      }
+      
+      // Validate file type
+      if (!blob.type.startsWith('image/')) {
+        throw new Error('File must be an image');
+      }
+      
+      const filename = `profile-pics/${user.uid}_${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+      
+      // Upload with metadata
+      await uploadBytes(storageRef, blob, {
+        contentType: blob.type || 'image/jpeg',
+        customMetadata: {
+          uploadedBy: user.uid,
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+      
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      return downloadURL;
+    } catch (error: any) {
+      throw new Error(`Failed to upload profile picture: ${error.message}`);
+    }
+  };
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) {
+      throw new Error('User must be logged in to update profile');
+    }
+
+    try {
+      const driverRef = doc(firestore, 'drivers', user.uid);
+      await updateDoc(driverRef, updates);
+
+      // Update Firebase Auth displayName if name is being updated
+      if (updates.name && user) {
+        await updateProfile(user, { displayName: updates.name });
+      }
+
+      // Update local state
+      const updatedProfile = { ...userProfile!, ...updates };
+      setUserProfile(updatedProfile);
+    } catch (error: any) {
+      throw new Error(`Failed to update profile: ${error.message}`);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, signUp, signIn, logout }}>
+    <AuthContext.Provider value={{ user, userProfile, loading, signUp, signIn, logout, updateProfile, uploadProfilePicture }}>
       {children}
     </AuthContext.Provider>
   );
