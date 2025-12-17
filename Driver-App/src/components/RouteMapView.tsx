@@ -158,13 +158,13 @@ export default function RouteMapView({
         ))}
 
         {/* Current location marker */}
-        {currentLocation && (
+        {/* {currentLocation && (
           <Marker coordinate={currentLocation} title="Current Location" pinColor="#EF4444">
             <View style={styles.currentLocationMarker}>
               <View style={styles.currentLocationDot} />
             </View>
           </Marker>
-        )}
+        )} */}
       </MapView>
 
       {/* Route summary overlay */}
