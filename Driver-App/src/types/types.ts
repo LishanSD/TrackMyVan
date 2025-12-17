@@ -73,3 +73,15 @@ export interface UserProfile {
   role: 'driver';
   createdAt: string;
 }
+
+export interface Trip {
+  id: string;
+  driverId: string;
+  date: string;
+  type: TripType;
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  startTime?: number | { seconds: number; nanoseconds: number };
+  endTime?: number | { seconds: number; nanoseconds: number };
+  children?: string[];
+  notes?: string;
+}
