@@ -15,26 +15,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { firestore } from '../../src/config/firebaseConfig';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
-
-interface Location {
-  latitude: number;
-  longitude: number;
-  address?: string;
-}
-
-interface Student {
-  id: string;
-  name: string;
-  age: string;
-  grade: string;
-  parentEmail: string;
-  parentName: string;
-  parentPhone: string;
-  homeLocation: Location;
-  schoolLocation: Location;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-}
+import { Location, Student } from '../../src/types/types';
 
 export default function StudentsScreen() {
   const { user } = useAuth();
@@ -56,10 +37,12 @@ export default function StudentsScreen() {
       snapshot.forEach((doc) => {
         studentsData.push({ id: doc.id, ...doc.data() } as Student);
       });
+      const getTime = (value?: string) => (value ? new Date(value).getTime() : 0);
+
       studentsData.sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (a.status !== 'pending' && b.status === 'pending') return 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return getTime(b.createdAt) - getTime(a.createdAt);
       });
       setStudents(studentsData);
       setLoading(false);
@@ -208,36 +191,40 @@ export default function StudentsScreen() {
                   <View
                     style={[
                       styles.statusBadge,
-                      { backgroundColor: getStatusColor(student.status) + '20' },
+                      { backgroundColor: getStatusColor(student.status ?? 'pending') + '20' },
                     ]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(student.status) }]}>
-                      {getStatusText(student.status)}
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(student.status ?? 'pending') },
+                      ]}>
+                      {getStatusText(student.status ?? 'pending')}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Age:</Text>
-                  <Text style={styles.value}>{student.age} years</Text>
+                  <Text style={styles.value}>{student.age ? `${student.age} years` : 'N/A'}</Text>
                 </View>
 
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Grade:</Text>
-                  <Text style={styles.value}>{student.grade}</Text>
+                  <Text style={styles.value}>{student.grade ?? 'N/A'}</Text>
                 </View>
 
                 <View style={styles.divider} />
 
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Parent:</Text>
-                  <Text style={styles.valueSmall}>{student.parentName}</Text>
+                  <Text style={styles.valueSmall}>{student.parentName ?? 'N/A'}</Text>
                 </View>
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Phone:</Text>
-                  <Text style={styles.valueSmall}>{student.parentPhone}</Text>
+                  <Text style={styles.valueSmall}>{student.parentPhone ?? 'N/A'}</Text>
                 </View>
 
-                {student.status === 'pending' ? (
+                {(student.status ?? 'pending') === 'pending' ? (
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
                       style={styles.rejectButton}
@@ -275,14 +262,17 @@ export default function StudentsScreen() {
                     <View
                       style={[
                         styles.statusBadge,
-                        { backgroundColor: getStatusColor(selectedStudent.status) + '20' },
+                        {
+                          backgroundColor:
+                            getStatusColor(selectedStudent.status ?? 'pending') + '20',
+                        },
                       ]}>
                       <Text
                         style={[
                           styles.statusText,
-                          { color: getStatusColor(selectedStudent.status) },
+                          { color: getStatusColor(selectedStudent.status ?? 'pending') },
                         ]}>
-                        {getStatusText(selectedStudent.status)}
+                        {getStatusText(selectedStudent.status ?? 'pending')}
                       </Text>
                     </View>
                   </View>
@@ -291,11 +281,13 @@ export default function StudentsScreen() {
                     <Text style={styles.detailSectionTitle}>Student Info</Text>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Age:</Text>
-                      <Text style={styles.value}>{selectedStudent.age} years</Text>
+                      <Text style={styles.value}>
+                        {selectedStudent.age ? `${selectedStudent.age} years` : 'N/A'}
+                      </Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Grade:</Text>
-                      <Text style={styles.value}>{selectedStudent.grade}</Text>
+                      <Text style={styles.value}>{selectedStudent.grade ?? 'N/A'}</Text>
                     </View>
                   </View>
 
@@ -303,15 +295,15 @@ export default function StudentsScreen() {
                     <Text style={styles.detailSectionTitle}>Parent Info</Text>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Name:</Text>
-                      <Text style={styles.valueSmall}>{selectedStudent.parentName}</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentName ?? 'N/A'}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Phone:</Text>
-                      <Text style={styles.valueSmall}>{selectedStudent.parentPhone}</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentPhone ?? 'N/A'}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Email:</Text>
-                      <Text style={styles.valueSmall}>{selectedStudent.parentEmail}</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentEmail ?? 'N/A'}</Text>
                     </View>
                   </View>
                   <View style={styles.detailSection}>

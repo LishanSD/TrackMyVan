@@ -9,14 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, firestore } from '../config/firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-
-interface UserProfile {
-  email: string;
-  name: string;
-  phone: string;
-  role: 'driver';
-  createdAt: string;
-}
+import { UserProfile } from '../types/types';
 
 interface AuthContextType {
   user: User | null;
