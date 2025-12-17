@@ -52,3 +52,33 @@ export interface Parent {
   role: 'parent';
   createdAt: string;
 }
+
+// Trip tracking (Firestore)
+export interface Trip {
+  id: string;
+  driverId: string;
+  date: string; // ISO date string (YYYY-MM-DD)
+  type: 'MORNING' | 'AFTERNOON';
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  startTime?: number; // timestamp
+  endTime?: number; // timestamp
+  children: string[]; // array of childIds
+}
+
+// Individual pickup/dropoff status
+export interface PickupStatus {
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
+  time?: number; // timestamp
+  location?: Location;
+}
+
+// Daily child status (Firestore)
+export interface ChildStatus {
+  childId: string;
+  date: string; // ISO date string (YYYY-MM-DD)
+  morningPickup: PickupStatus;
+  schoolDropoff: PickupStatus;
+  schoolPickup: PickupStatus;
+  homeDropoff: PickupStatus;
+  currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
+}

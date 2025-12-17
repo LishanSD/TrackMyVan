@@ -1,45 +1,166 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../src/context/AuthContext';
+import { Student, ChildStatus } from '../../src/types/types';
+import { subscribeToParentStudents } from '../../src/services/childrenService';
+import { getChildStatusTodayOrDefault } from '../../src/services/childStatusService';
+import { StudentCard } from '../../src/components/StudentCard';
+import { theme } from '../../src/theme/theme';
 
 export default function DashboardScreen() {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [childStatuses, setChildStatuses] = useState<Map<string, ChildStatus>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch child statuses for all students
+  const fetchChildStatuses = async (studentList: Student[]) => {
+    try {
+      const statusMap = new Map<string, ChildStatus>();
+
+      await Promise.all(
+        studentList.map(async (student) => {
+          const status = await getChildStatusTodayOrDefault(student.id);
+          statusMap.set(student.id, status);
+        })
+      );
+
+      setChildStatuses(statusMap);
+    } catch (err) {
+      console.error('Error fetching child statuses:', err);
+    }
+  };
+
+  // Subscribe to parent's students
+  useEffect(() => {
+    if (!user) return;
+
+    setLoading(true);
+
+    const unsubscribe = subscribeToParentStudents(
+      user.uid,
+      async (studentList) => {
+        setStudents(studentList);
+        await fetchChildStatuses(studentList);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        setError('Failed to load students');
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Handle pull to refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchChildStatuses(students);
+    setRefreshing(false);
+  };
+
+  // Handle card click with validation
+  const handleCardClick = (student: Student) => {
+    if (student.status !== 'approved') {
+      Alert.alert(
+        'Not Approved',
+        'This student is pending driver approval. Tracking will be available once approved.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!student.driverId) {
+      Alert.alert(
+        'No Van Assigned',
+        'This student has no assigned driver. Please assign a driver to enable tracking.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Navigate to tracking screen
+    router.push(`/tracking/${student.id}` as const);
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+          />
+        }>
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.dashboardTitle}>Dashboard</Text>
-            <Text style={styles.dashboardSubtitle}>Track your child's van in real-time</Text>
+            <Text style={styles.dashboardSubtitle}>Track your children's van in real-time</Text>
           </View>
 
-          {/* Child Info Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Your Child</Text>
-            <View style={styles.childInfoRow}>
-              <View style={styles.avatarContainer}>
-                <Text style={styles.avatarText}>👦</Text>
-              </View>
-              <View style={styles.childDetails}>
-                <Text style={styles.childName}>Child Name</Text>
-                <Text style={styles.childStatus}>No pickup today</Text>
-              </View>
+          {/* Error Message */}
+          {error && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>⚠️ {error}</Text>
             </View>
-          </View>
+          )}
 
-          {/* Today's Activity */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Today's Activity</Text>
-            <View style={styles.activityPlaceholder}>
-              <Text style={styles.activityIcon}>📋</Text>
-              <Text style={styles.activityText}>No activity yet today</Text>
+          {/* Student Cards */}
+          {students.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyIcon}>👥</Text>
+              <Text style={styles.emptyText}>No students added yet</Text>
+              <Text style={styles.emptySubtext}>
+                Add children from the Children tab to track their van
+              </Text>
             </View>
-          </View>
+          ) : (
+            <View style={styles.cardsContainer}>
+              {students.map((student) => (
+                <StudentCard
+                  key={student.id}
+                  student={student}
+                  childStatus={childStatuses.get(student.id) || null}
+                  onPress={handleCardClick}
+                />
+              ))}
+            </View>
+          )}
 
-          {/* Quick Actions/Info Box */}
+          {/* Quick Info Box */}
           <View style={styles.infoBox}>
             <Text style={styles.infoBoxText}>
-              You'll receive notifications when your child is picked up or dropped off
+              Pull down to refresh • Tap cards to view live tracking
             </Text>
           </View>
         </View>
@@ -49,160 +170,87 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  // SafeAreaView (className="flex-1 bg-gray-50")
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb', // bg-gray-50
+    backgroundColor: theme.colors.background,
   },
-  // ScrollView (className="flex-1")
   scrollView: {
     flex: 1,
   },
-  // View (className="p-6")
   container: {
-    padding: 24, // p-6
+    padding: theme.spacing.lg,
   },
-  // Header (className="mb-6")
-  header: {
-    marginBottom: 24, // mb-6
-  },
-  // Dashboard Title (className="mb-1 text-3xl font-bold text-gray-900")
-  dashboardTitle: {
-    marginBottom: 4, // mb-1
-    fontSize: 30, // text-3xl
-    fontWeight: 'bold',
-    color: '#111827', // text-gray-900
-  },
-  // Dashboard Subtitle (className="text-sm text-gray-500")
-  dashboardSubtitle: {
-    fontSize: 14, // text-sm
-    color: '#6b7280', // text-gray-500
-  },
-  // Card base style (className="mb-4 rounded-2xl bg-white p-6 shadow-sm")
-  card: {
-    marginBottom: 16, // mb-4
-    borderRadius: 16, // rounded-2xl
-    backgroundColor: '#ffffff', // bg-white
-    padding: 24, // p-6
-    shadowColor: '#000', // shadow-sm
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1, // Android shadow
-  },
-  // Card Title (className="text-lg font-semibold text-gray-900")
-  cardTitle: {
-    fontSize: 18, // text-lg
-    fontWeight: '600', // font-semibold
-    color: '#111827', // text-gray-900
-  },
-
-  // Van Status Header (className="mb-4 flex-row items-center justify-between")
-  vanStatusHeader: {
-    marginBottom: 16, // mb-4
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  // Status Pill (className="rounded-full bg-gray-100 px-3 py-1")
-  statusPill: {
-    borderRadius: 9999, // rounded-full
-    backgroundColor: '#f3f4f6', // bg-gray-100
-    paddingHorizontal: 12, // px-3
-    paddingVertical: 4, // py-1
-  },
-  // Status Pill Text (className="text-xs font-medium text-gray-600")
-  statusPillText: {
-    fontSize: 12, // text-xs
-    fontWeight: '500', // font-medium
-    color: '#4b5563', // text-gray-600
-  },
-  // Card Text (className="mb-4 text-sm text-gray-500")
-  cardText: {
-    marginBottom: 16, // mb-4
-    fontSize: 14, // text-sm
-    color: '#6b7280', // text-gray-500
-  },
-  // Track Button (className="rounded-xl bg-blue-600 py-3 active:bg-blue-700")
-  trackButton: {
-    borderRadius: 12, // rounded-xl
-    backgroundColor: '#2563eb', // bg-blue-600
-    paddingVertical: 12, // py-3
-    // Note: 'active:bg-blue-700' is an interaction style not directly supported by StyleSheet
-  },
-  // Track Button Text (className="text-center font-semibold text-white")
-  trackButtonText: {
-    textAlign: 'center',
-    fontWeight: '600', // font-semibold
-    color: '#ffffff', // text-white
-  },
-
-  // Child Info Card styles
-  // Card Title (className="mb-4 text-lg font-semibold text-gray-900") - Already defined as cardTitle
-  // Child Info Row (className="flex-row items-center")
-  childInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  // Avatar Container (className="mr-4 h-12 w-12 items-center justify-center rounded-full bg-blue-100")
-  avatarContainer: {
-    marginRight: 16, // mr-4
-    height: 48, // h-12
-    width: 48, // w-12
-    alignItems: 'center', // items-center
-    justifyContent: 'center', // justify-center
-    borderRadius: 24, // rounded-full (half of h/w 48)
-    backgroundColor: '#dbeafe', // bg-blue-100
-  },
-  // Avatar Text (className="text-2xl")
-  avatarText: {
-    fontSize: 24, // text-2xl
-  },
-  // Child Details View (className="flex-1")
-  childDetails: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  // Child Name (className="text-base font-medium text-gray-900")
-  childName: {
-    fontSize: 16, // text-base
-    fontWeight: '500', // font-medium
-    color: '#111827', // text-gray-900
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: 16,
+    color: theme.colors.text.secondary,
   },
-  // Child Status (className="text-sm text-gray-500")
-  childStatus: {
-    fontSize: 14, // text-sm
-    color: '#6b7280', // text-gray-500
+  header: {
+    marginBottom: theme.spacing.lg,
   },
-
-  // Today's Activity styles
-  // Activity Placeholder (className="items-center py-8")
-  activityPlaceholder: {
-    alignItems: 'center', // items-center
-    paddingVertical: 32, // py-8
+  dashboardTitle: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
   },
-  // Activity Icon (className="mb-2 text-6xl")
-  activityIcon: {
-    marginBottom: 8, // mb-2
-    fontSize: 60, // text-6xl
+  dashboardSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
   },
-  // Activity Text (className="text-center text-sm text-gray-400")
-  activityText: {
+  errorBanner: {
+    backgroundColor: theme.colors.error + '20',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.error,
+  },
+  errorText: {
+    fontSize: 14,
+    color: theme.colors.error,
+    fontWeight: '500',
+  },
+  cardsContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  emptyCard: {
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: theme.spacing.md,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
-    fontSize: 14, // text-sm
-    color: '#9ca3af', // text-gray-400
   },
-
-  // Quick Actions/Info Box (className="mt-4 rounded-xl bg-blue-50 p-4")
   infoBox: {
-    marginTop: 16, // mt-4
-    borderRadius: 12, // rounded-xl
-    backgroundColor: '#eff6ff', // bg-blue-50
-    padding: 16, // p-4
+    marginTop: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.primary + '10',
+    padding: theme.spacing.md,
   },
-  // Info Box Text (className="text-center text-xs text-blue-600")
   infoBoxText: {
     textAlign: 'center',
-    fontSize: 12, // text-xs
-    color: '#2563eb', // text-blue-600
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '500',
   },
 });
