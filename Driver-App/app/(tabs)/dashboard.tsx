@@ -10,6 +10,7 @@ import {
   // TouchableOpacity removed
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 // Firestore Imports
@@ -214,6 +215,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 export default function DashboardScreen() {
   const { user } = useAuth();
   const { setTripData, endTrip: endTripContext, isActive, tripState } = useTrip();
+  const router = useRouter();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
@@ -230,9 +232,32 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     const checkTaskStatus = async () => {
-      if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      const storedTripId = await AsyncStorage.getItem('currentTripId');
+      const storedTripType = (await AsyncStorage.getItem('currentTripType')) as TripType | null;
+
+      if (isRegistered && storedTripId) {
+        // We have an active background task and a persisted trip ID → restore state
+        setCurrentTripId(storedTripId);
+        if (storedTripType === 'MORNING' || storedTripType === 'AFTERNOON') {
+          setTripType(storedTripType);
+        }
         setIsTripActive(true);
-        setTripStatusText('Trip Active. Location tracking in progress.');
+        setTripStatusText(`Trip IN_PROGRESS: ${storedTripType ?? tripType}`);
+      } else if (isRegistered && !storedTripId) {
+        // Orphaned background task with no trip ID → stop it and reset UI
+        try {
+          await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+        } catch (e) {
+          console.error('Failed to stop orphaned location task:', e);
+        }
+        setIsTripActive(false);
+        setCurrentTripId(null);
+        setTripStatusText('No active trip');
+      } else {
+        setIsTripActive(false);
+        setCurrentTripId(null);
+        setTripStatusText('No active trip');
       }
     };
     checkTaskStatus();
@@ -423,6 +448,7 @@ export default function DashboardScreen() {
       setCurrentTripId(tripId);
       await AsyncStorage.setItem('driverId', driverId);
       await AsyncStorage.setItem('currentTripId', tripId);
+      await AsyncStorage.setItem('currentTripType', tripType);
 
       // Save route to TripContext
       setTripData(tripId, tripType, optimizedRoute);
@@ -477,7 +503,15 @@ export default function DashboardScreen() {
       setIsTripActive(false);
       setTripStatusText('No active trip');
 
-      Alert.alert('Trip Ended', 'Location tracking has stopped.');
+      Alert.alert('Trip Ended', 'Location tracking has stopped.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Navigate to Map tab so the driver immediately sees the completion overlay
+            router.push('/(tabs)/map');
+          },
+        },
+      ]);
     } catch (error) {
       console.error('Error ending trip:', error);
       Alert.alert('Error', 'Failed to stop trip tracking. Please check logs.');
