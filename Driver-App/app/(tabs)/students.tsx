@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -28,6 +29,7 @@ export default function StudentsScreen() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Detail view modal
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -87,8 +89,17 @@ export default function StudentsScreen() {
   };
 
   const getFilteredStudents = () => {
-    if (filter === 'all') return students;
-    return students.filter((s) => s.status === filter);
+    const statusFiltered =
+      filter === 'all' ? students : students.filter((s) => s.status === filter);
+
+    if (!searchQuery.trim()) return statusFiltered;
+
+    const query = searchQuery.toLowerCase();
+
+    return statusFiltered.filter((s) => {
+      const fields = [s.name, s.parentName, s.grade];
+      return fields.some((field) => field?.toLowerCase().includes(query));
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -172,6 +183,24 @@ export default function StudentsScreen() {
             </View>
           </View>
 
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search by student, parent, or grade"
+              placeholderTextColor={theme.colors.text.light}
+              style={styles.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity style={styles.clearSearchButton} onPress={() => setSearchQuery('')}>
+                <Text style={styles.clearSearchText}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Filter Tabs */}
           <View style={styles.filterContainer}>
             <TouchableOpacity
@@ -201,10 +230,16 @@ export default function StudentsScreen() {
           {filteredStudents.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>
-                {filter === 'all' ? 'No students yet' : `No ${filter} students`}
+                {searchQuery.trim()
+                  ? 'No students match your search'
+                  : filter === 'all'
+                    ? 'No students yet'
+                    : `No ${filter} students`}
               </Text>
               <Text style={styles.emptySubtext}>
-                Students will appear here when parents add them
+                {searchQuery.trim()
+                  ? 'Try a different name, parent, or grade'
+                  : 'Students will appear here when parents add them'}
               </Text>
             </View>
           ) : (
@@ -421,6 +456,34 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: theme.colors.text.secondary,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.text.primary,
+  },
+  clearSearchButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.border,
+    borderRadius: theme.borderRadius.full,
+  },
+  clearSearchText: {
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    fontSize: 12,
   },
   filterContainer: {
     flexDirection: 'row',
