@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,7 +19,7 @@ import { StudentCard } from '../../src/components/StudentCard';
 import { theme } from '../../src/theme/theme';
 
 export default function DashboardScreen() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const router = useRouter();
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -124,8 +125,18 @@ export default function DashboardScreen() {
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.dashboardTitle}>Dashboard</Text>
-            <Text style={styles.dashboardSubtitle}>Track your children's van in real-time</Text>
+            <View style={styles.headerTop}>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.dashboardTitle}>Dashboard</Text>
+                <Text style={styles.dashboardSubtitle}>Track your children's van in real-time</Text>
+              </View>
+              {userProfile?.profilePic && (
+                <Image
+                  source={{ uri: userProfile.profilePic }}
+                  style={styles.dashboardProfilePic}
+                />
+              )}
+            </View>
           </View>
 
           {/* Error Message */}
@@ -193,6 +204,14 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: theme.spacing.lg,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
   dashboardTitle: {
     fontSize: 30,
     fontWeight: 'bold',
@@ -202,6 +221,13 @@ const styles = StyleSheet.create({
   dashboardSubtitle: {
     fontSize: 14,
     color: theme.colors.text.secondary,
+  },
+  dashboardProfilePic: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: theme.colors.border,
+    marginLeft: theme.spacing.md,
   },
   errorBanner: {
     backgroundColor: theme.colors.error + '20',
