@@ -33,6 +33,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>💬</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="students"
         options={{
           title: 'Students',
