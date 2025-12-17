@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { doc, getDoc } from 'firebase/firestore';
@@ -175,50 +168,6 @@ export default function TrackingScreen() {
           error={null}
         />
       </View>
-
-      {/* Location Details */}
-      <View style={styles.detailsContainer}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.detailCard}>
-            <Text style={styles.detailTitle}>📍 Locations</Text>
-
-            <View style={styles.locationRow}>
-              <Text style={styles.locationIcon}>🏠</Text>
-              <View style={styles.locationInfo}>
-                <Text style={styles.locationLabel}>Home</Text>
-                <Text style={styles.locationCoords}>
-                  {student.homeLocation.latitude.toFixed(6)},{' '}
-                  {student.homeLocation.longitude.toFixed(6)}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.locationRow}>
-              <Text style={styles.locationIcon}>🏫</Text>
-              <View style={styles.locationInfo}>
-                <Text style={styles.locationLabel}>School</Text>
-                <Text style={styles.locationCoords}>
-                  {student.schoolLocation.latitude.toFixed(6)},{' '}
-                  {student.schoolLocation.longitude.toFixed(6)}
-                </Text>
-              </View>
-            </View>
-
-            {driverLocation && (
-              <View style={styles.locationRow}>
-                <Text style={styles.locationIcon}>🚐</Text>
-                <View style={styles.locationInfo}>
-                  <Text style={styles.locationLabel}>Van (Current)</Text>
-                  <Text style={styles.locationCoords}>
-                    {driverLocation.lat.toFixed(6)}, {driverLocation.lng.toFixed(6)}
-                  </Text>
-                  <Text style={styles.bearingText}>Heading: {driverLocation.bearing}°</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        </ScrollView>
-      </View>
     </SafeAreaView>
   );
 }
@@ -338,53 +287,5 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     minHeight: 300,
-  },
-
-  // Details
-  detailsContainer: {
-    maxHeight: 200,
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  detailCard: {
-    padding: theme.spacing.md,
-  },
-  detailTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.md,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border + '40',
-  },
-  locationIcon: {
-    fontSize: 24,
-    marginRight: theme.spacing.md,
-  },
-  locationInfo: {
-    flex: 1,
-  },
-  locationLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: 4,
-  },
-  locationCoords: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    fontFamily: 'monospace',
-  },
-  bearingText: {
-    fontSize: 11,
-    color: theme.colors.text.light,
-    marginTop: 2,
   },
 });
