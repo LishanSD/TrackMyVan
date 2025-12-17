@@ -171,22 +171,21 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
             </View>
           )}
 
-          {student.currentVanStatus !== 'DROPPED_OFF' &&
-            student.currentVanStatus !== 'NOT_ATTENDED' && (
-              <TouchableWithoutFeedback
-                onPress={() => onUpdateStatus(student.id, 'NOT_ATTENDED')}
-                onPressIn={() => setPressedNotAttendedId(student.id)}
-                onPressOut={() => setPressedNotAttendedId(null)}>
-                <View
-                  style={[
-                    styles.statusButton,
-                    styles.notAttendedButton,
-                    pressedNotAttendedId === student.id && { opacity: 0.5 },
-                  ]}>
-                  <Text style={styles.statusButtonText}>Not Attended</Text>
-                </View>
-              </TouchableWithoutFeedback>
-            )}
+          {student.currentVanStatus === 'NOT_PICKED_UP' && (
+            <TouchableWithoutFeedback
+              onPress={() => onUpdateStatus(student.id, 'NOT_ATTENDED')}
+              onPressIn={() => setPressedNotAttendedId(student.id)}
+              onPressOut={() => setPressedNotAttendedId(null)}>
+              <View
+                style={[
+                  styles.statusButton,
+                  styles.notAttendedButton,
+                  pressedNotAttendedId === student.id && { opacity: 0.5 },
+                ]}>
+                <Text style={styles.statusButtonText}>Not Attended</Text>
+              </View>
+            </TouchableWithoutFeedback>
+          )}
         </View>
       </View>
     );
@@ -265,36 +264,57 @@ export default function DashboardScreen() {
       const locationData = await getCurrentLocationData();
       const date = new Date().toISOString().split('T')[0];
 
-      let updateKey: keyof StudentStatus;
       let newVanStatus: Student['currentVanStatus'];
       let newOverallStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
-      let attendanceStatusUpdate: string | undefined;
+
+      const baseRecord = {
+        time: locationData.time,
+        location: locationData.location,
+        tripId: currentTripId,
+      };
+
+      let updateData: Partial<StudentStatus>;
 
       if (action === 'PICKUP') {
-        updateKey = tripType === 'MORNING' ? 'morningPickup' : 'schoolPickup';
+        const pickupKey = tripType === 'MORNING' ? 'morningPickup' : 'schoolPickup';
         newVanStatus = 'IN_VAN';
         newOverallStatus = 'IN_VAN';
+        updateData = {
+          [pickupKey]: {
+            status: 'COMPLETED',
+            ...baseRecord,
+          },
+          currentStatus: newOverallStatus,
+        };
       } else if (action === 'DROPOFF') {
-        updateKey = tripType === 'MORNING' ? 'schoolDropoff' : 'homeDropoff';
+        const dropoffKey = tripType === 'MORNING' ? 'schoolDropoff' : 'homeDropoff';
         newVanStatus = 'DROPPED_OFF';
         newOverallStatus = tripType === 'MORNING' ? 'AT_SCHOOL' : 'AT_HOME';
+        updateData = {
+          [dropoffKey]: {
+            status: 'COMPLETED',
+            ...baseRecord,
+          },
+          currentStatus: newOverallStatus,
+        };
       } else {
-        updateKey = tripType === 'MORNING' ? 'morningPickup' : 'schoolPickup';
+        const pickupKey = tripType === 'MORNING' ? 'morningPickup' : 'schoolPickup';
+        const dropoffKey = tripType === 'MORNING' ? 'schoolDropoff' : 'homeDropoff';
         newVanStatus = 'NOT_ATTENDED';
         newOverallStatus = tripType === 'MORNING' ? 'AT_HOME' : 'AT_SCHOOL';
-        attendanceStatusUpdate = 'NOT_ATTENDED';
-      }
 
-      const updateData: Partial<StudentStatus> = {
-        [updateKey]: {
-          status: action === 'NOT_ATTENDED' ? 'NOT_ATTENDED' : 'COMPLETED',
-          time: locationData.time,
-          location: locationData.location,
-          tripId: currentTripId,
-        },
-        currentStatus: newOverallStatus,
-        ...(attendanceStatusUpdate ? { attendanceStatus: attendanceStatusUpdate } : {}),
-      };
+        const notAttendedRecord = {
+          status: 'NOT_ATTENDED' as const,
+          ...baseRecord,
+        };
+
+        updateData = {
+          [pickupKey]: notAttendedRecord,
+          [dropoffKey]: notAttendedRecord,
+          currentStatus: newOverallStatus,
+          attendanceStatus: 'NOT_ATTENDED',
+        };
+      }
 
       const childStatusDocRef = doc(firestore, 'childStatus', childId, 'dates', date);
       await setDoc(childStatusDocRef, updateData, { merge: true });
