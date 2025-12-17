@@ -185,7 +185,7 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
         {canTrack ? (
           <View style={styles.actionHintContainer}>
             <Text style={styles.actionHint}>Live Tracking Available</Text>
-            <Text style={styles.actionArrow}>→</Text>
+            <Text style={styles.actionArrow}>›</Text>
           </View>
         ) : (
           <View style={styles.actionHintContainer}>
