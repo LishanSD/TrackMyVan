@@ -1,7 +1,7 @@
 import { FieldValue } from 'firebase/firestore';
 
 export type TripType = 'MORNING' | 'AFTERNOON';
-export type ChildActionEvent = 'PICKUP' | 'DROPOFF';
+export type ChildActionEvent = 'PICKUP' | 'DROPOFF' | 'NOT_ATTENDED';
 
 export interface Location {
   latitude: number;
@@ -10,7 +10,7 @@ export interface Location {
 }
 
 export interface LocationRecord {
-  status: 'COMPLETED' | 'PENDING';
+  status: 'COMPLETED' | 'PENDING' | 'NOT_ATTENDED';
   time: FieldValue;
   location: {
     latitude: number;
@@ -43,7 +43,6 @@ export interface ChildStatus {
   schoolPickup: PickupStatus;
   homeDropoff: PickupStatus;
   currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
-  attendanceStatus?: string;
 }
 
 export interface Student {
@@ -62,7 +61,7 @@ export interface Student {
   homeLocation: Location;
   schoolLocation: Location;
   status?: 'pending' | 'approved' | 'rejected';
-  currentVanStatus?: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF';
+  currentVanStatus?: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF' | 'NOT_ATTENDED';
   createdAt?: string;
 }
 
@@ -72,6 +71,20 @@ export interface UserProfile {
   phone: string;
   role: 'driver';
   createdAt: string;
+}
+
+export type MessageSenderRole = 'driver' | 'parent';
+
+export interface Message {
+  id: string;
+  driverId: string;
+  parentId: string;
+  studentId?: string;
+  text: string;
+  senderId: string;
+  senderRole: MessageSenderRole;
+  createdAt?: number | { seconds: number; nanoseconds: number };
+  isBroadcast?: boolean;
 }
 
 export interface Trip {
