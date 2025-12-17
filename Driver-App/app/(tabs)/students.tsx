@@ -28,6 +28,8 @@ interface Student {
   age: string;
   grade: string;
   parentEmail: string;
+  parentName: string;
+  parentPhone: string;
   homeLocation: Location;
   schoolLocation: Location;
   status: 'pending' | 'approved' | 'rejected';
