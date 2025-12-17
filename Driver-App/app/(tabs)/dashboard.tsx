@@ -312,7 +312,6 @@ export default function DashboardScreen() {
           [pickupKey]: notAttendedRecord,
           [dropoffKey]: notAttendedRecord,
           currentStatus: newOverallStatus,
-          attendanceStatus: 'NOT_ATTENDED',
         };
       }
 

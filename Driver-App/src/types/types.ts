@@ -25,7 +25,6 @@ export interface StudentStatus {
   schoolPickup: LocationRecord;
   homeDropoff: LocationRecord;
   currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
-  attendanceStatus?: string;
 }
 
 export type PickupStatusState = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
@@ -44,7 +43,6 @@ export interface ChildStatus {
   schoolPickup: PickupStatus;
   homeDropoff: PickupStatus;
   currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
-  attendanceStatus?: string;
 }
 
 export interface Student {
