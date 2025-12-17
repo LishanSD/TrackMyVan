@@ -70,6 +70,8 @@ export const fetchStudentsByIds = async (ids: string[]): Promise<Student[]> => {
           .map((value: any) => {
             if (typeof value === 'string') return value;
             if (value && typeof value === 'object' && typeof value.id === 'string') return value.id;
+            if (value && typeof value === 'object' && typeof value.childId === 'string')
+              return value.childId;
             return '';
           })
           .filter((v) => typeof v === 'string' && v.length > 0)

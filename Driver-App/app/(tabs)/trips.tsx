@@ -128,12 +128,25 @@ export default function TripsScreen() {
     });
   }, [pastTrips, search]);
 
+  const extractChildIds = (trip: Trip): string[] => {
+    if (!Array.isArray(trip.children)) return [];
+    return trip.children
+      .map((c: any) => {
+        if (typeof c === 'string') return c;
+        if (c && typeof c === 'object' && typeof c.childId === 'string') return c.childId;
+        if (c && typeof c === 'object' && typeof c.id === 'string') return c.id;
+        return '';
+      })
+      .filter((v) => typeof v === 'string' && v.length > 0);
+  };
+
   const loadTripStudents = useCallback(
-    async (trip: Trip) => {
-      if (!trip.children || trip.children.length === 0 || studentsByTrip[trip.id]) return;
+    async (trip: Trip, childIds?: string[]) => {
+      const ids = childIds ?? extractChildIds(trip);
+      if (!ids.length || studentsByTrip[trip.id]) return;
       setStudentsLoading((prev) => ({ ...prev, [trip.id]: true }));
       try {
-        const data = await fetchStudentsByIds(trip.children);
+        const data = await fetchStudentsByIds(ids);
         setStudentsByTrip((prev) => ({ ...prev, [trip.id]: data }));
       } catch (e) {
         // noop; fallback messaging in UI
@@ -144,17 +157,18 @@ export default function TripsScreen() {
     [studentsByTrip]
   );
 
-  const onToggleExpand = (trip: Trip) => {
+  const onToggleExpand = (trip: Trip, childIds?: string[]) => {
     const nextId = expandedTripId === trip.id ? null : trip.id;
     setExpandedTripId(nextId);
     if (nextId) {
-      loadTripStudents(trip);
+      loadTripStudents(trip, childIds);
     }
   };
 
   const renderTrip = useCallback(
     ({ item }: { item: Trip }) => {
-      const childrenCount = item.children?.length ?? 0;
+      const childIds = extractChildIds(item);
+      const childrenCount = childIds.length;
       const isExpanded = expandedTripId === item.id;
       const studentList = studentsByTrip[item.id];
       const studentsAreLoading = studentsLoading[item.id];
@@ -165,7 +179,7 @@ export default function TripsScreen() {
           childrenCount={childrenCount}
           studentList={studentList}
           studentsAreLoading={!!studentsAreLoading}
-          onToggle={() => onToggleExpand(item)}
+          onToggle={() => onToggleExpand(item, childIds)}
         />
       );
     },
@@ -291,21 +305,13 @@ const TripCard = React.memo(
 
           {isExpanded && (
             <View style={styles.details}>
-              <Text style={styles.detailsTitle}>Trip details</Text>
-              {trip.notes ? (
-                <View style={styles.notes}>
-                  <Text style={styles.notesLabel}>Notes</Text>
-                  <Text style={styles.notesText}>{trip.notes}</Text>
-                </View>
-              ) : null}
-
               <Text style={[styles.notesLabel, { marginTop: 8 }]}>Students</Text>
               {studentsAreLoading ? (
                 <Text style={styles.helperText}>Loading students...</Text>
               ) : studentList && studentList.length > 0 ? (
                 studentList.map((student) => (
                   <Text key={student.id} style={styles.studentItem}>
-                    • {student.name ?? 'Unnamed'} ({student.id})
+                    • {student.name ?? 'Unnamed'}
                   </Text>
                 ))
               ) : (
