@@ -42,35 +42,51 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
     }
   };
 
+  // Get status icon
+  const getStatusIcon = () => {
+    if (!childStatus) return '❓';
+
+    switch (childStatus.currentStatus) {
+      case 'AT_HOME':
+        return '🏠';
+      case 'IN_VAN':
+        return '🚐';
+      case 'AT_SCHOOL':
+        return '🏫';
+      default:
+        return '❓';
+    }
+  };
+
   // Get van status text
   const getVanStatus = () => {
-    if (!childStatus) return 'No trip today';
+    if (!childStatus) return { text: 'No trip scheduled', icon: '📅' };
 
     const { morningPickup, schoolDropoff, schoolPickup, homeDropoff, currentStatus } = childStatus;
 
     if (currentStatus === 'IN_VAN') {
       if (morningPickup.status === 'COMPLETED' && schoolDropoff.status !== 'COMPLETED') {
-        return '🚐 Morning trip - En route to school';
+        return { text: 'En route to school', icon: '🚐' };
       }
       if (schoolPickup.status === 'COMPLETED' && homeDropoff.status !== 'COMPLETED') {
-        return '🚐 Afternoon trip - En route home';
+        return { text: 'En route home', icon: '🚐' };
       }
-      return '🚐 Active trip';
+      return { text: 'Active trip', icon: '🚐' };
     }
 
     if (morningPickup.status === 'PENDING') {
-      return '⏰ Morning pickup pending';
+      return { text: 'Awaiting morning pickup', icon: '⏰' };
     }
 
     if (schoolPickup.status === 'PENDING' && schoolDropoff.status === 'COMPLETED') {
-      return '⏰ Afternoon pickup pending';
+      return { text: 'Awaiting afternoon pickup', icon: '⏰' };
     }
 
     if (homeDropoff.status === 'COMPLETED') {
-      return '✅ All trips completed';
+      return { text: 'All trips completed', icon: '✅' };
     }
 
-    return 'No active trip';
+    return { text: 'No active trip', icon: '📍' };
   };
 
   // Format time from timestamp
@@ -93,52 +109,79 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
   const schoolTimes = getSchoolTimes();
   const statusColor = getStatusColor();
   const canTrack = student.status === 'approved' && student.driverId;
+  const vanStatus = getVanStatus();
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, !canTrack && styles.cardDisabled]}
       onPress={() => onPress(student)}
       activeOpacity={0.7}
       disabled={!canTrack}>
-      {/* Header with name and status */}
+      {/* Header with name and prominent status */}
       <View style={styles.header}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>👦</Text>
+        <View style={styles.leftSection}>
+          <View style={[styles.avatarContainer, { backgroundColor: statusColor + '15' }]}>
+            <Text style={styles.avatarEmoji}>{getStatusIcon()}</Text>
+          </View>
+          <View style={styles.headerInfo}>
+            <Text style={styles.studentName}>{student.name}</Text>
+            <Text style={styles.gradeText}>Grade {student.grade}</Text>
+          </View>
         </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.studentName}>{student.name}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusText, { color: statusColor }]}>{getStatusLabel()}</Text>
+        <View
+          style={[
+            styles.statusBadge,
+            { backgroundColor: statusColor + '20', borderColor: statusColor },
+          ]}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.statusText, { color: statusColor }]}>{getStatusLabel()}</Text>
+        </View>
+      </View>
+
+      {/* Van Status - Prominent */}
+      <View style={[styles.vanStatusCard, { borderLeftColor: statusColor }]}>
+        <Text style={styles.vanStatusIcon}>{vanStatus.icon}</Text>
+        <View style={styles.vanStatusInfo}>
+          <Text style={styles.vanStatusLabel}>Current Status</Text>
+          <Text style={styles.vanStatusText}>{vanStatus.text}</Text>
+        </View>
+      </View>
+
+      {/* School times in compact format */}
+      <View style={styles.timesContainer}>
+        <View style={styles.timeCard}>
+          <Text style={styles.timeIcon}>🌅</Text>
+          <View style={styles.timeInfo}>
+            <Text style={styles.timeLabel}>Morning</Text>
+            <Text style={styles.timeValue}>{schoolTimes.morning}</Text>
+          </View>
+        </View>
+        <View style={styles.timeDivider} />
+        <View style={styles.timeCard}>
+          <Text style={styles.timeIcon}>🌆</Text>
+          <View style={styles.timeInfo}>
+            <Text style={styles.timeLabel}>Afternoon</Text>
+            <Text style={styles.timeValue}>{schoolTimes.afternoon}</Text>
           </View>
         </View>
       </View>
 
-      {/* School times */}
-      <View style={styles.timesContainer}>
-        <View style={styles.timeRow}>
-          <Text style={styles.timeLabel}>🌅 Morning Pickup</Text>
-          <Text style={styles.timeValue}>{schoolTimes.morning}</Text>
-        </View>
-        <View style={styles.timeRow}>
-          <Text style={styles.timeLabel}>🌆 Afternoon Pickup</Text>
-          <Text style={styles.timeValue}>{schoolTimes.afternoon}</Text>
-        </View>
+      {/* Action hint with icon */}
+      <View style={styles.actionContainer}>
+        {canTrack ? (
+          <View style={styles.actionHintContainer}>
+            <Text style={styles.actionIcon}>📍</Text>
+            <Text style={styles.actionHint}>Tap to view live tracking</Text>
+          </View>
+        ) : (
+          <View style={styles.actionHintContainer}>
+            <Text style={styles.actionIconDisabled}>⚠️</Text>
+            <Text style={styles.actionHintDisabled}>
+              {student.status !== 'approved' ? 'Pending driver approval' : 'No driver assigned'}
+            </Text>
+          </View>
+        )}
       </View>
-
-      {/* Van status */}
-      <View style={styles.vanStatusContainer}>
-        <Text style={styles.vanStatusText}>{getVanStatus()}</Text>
-      </View>
-
-      {/* Action hint */}
-      {canTrack ? (
-        <Text style={styles.actionHint}>Tap to track on map</Text>
-      ) : (
-        <Text style={styles.actionHintDisabled}>
-          {student.status !== 'approved' ? 'Pending approval' : 'No driver assigned'}
-        </Text>
-      )}
     </TouchableOpacity>
   );
 };
@@ -147,47 +190,69 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
+    padding: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.border + '40',
+  },
+  cardDisabled: {
+    opacity: 0.7,
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.primary + '20',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.md,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  avatarText: {
-    fontSize: 24,
+  avatarEmoji: {
+    fontSize: 28,
   },
   headerInfo: {
     flex: 1,
   },
   studentName: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  gradeText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1.5,
   },
   statusDot: {
     width: 8,
@@ -196,48 +261,104 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-  timesContainer: {
-    marginBottom: theme.spacing.sm,
-  },
-  timeRow: {
+
+  // Van Status Card
+  vanStatusCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderLeftWidth: 4,
   },
-  timeLabel: {
-    fontSize: 14,
+  vanStatusIcon: {
+    fontSize: 24,
+    marginRight: theme.spacing.md,
+  },
+  vanStatusInfo: {
+    flex: 1,
+  },
+  vanStatusLabel: {
+    fontSize: 11,
     color: theme.colors.text.secondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
-  timeValue: {
-    fontSize: 14,
+  vanStatusText: {
+    fontSize: 15,
     fontWeight: '600',
     color: theme.colors.text.primary,
   },
-  vanStatusContainer: {
+
+  // Times Container
+  timesContainer: {
+    flexDirection: 'row',
+    marginBottom: theme.spacing.md,
+  },
+  timeCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.background,
     borderRadius: theme.borderRadius.sm,
     padding: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
   },
-  vanStatusText: {
-    fontSize: 13,
+  timeDivider: {
+    width: theme.spacing.sm,
+  },
+  timeIcon: {
+    fontSize: 20,
+    marginRight: theme.spacing.sm,
+  },
+  timeInfo: {
+    flex: 1,
+  },
+  timeLabel: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  timeValue: {
+    fontSize: 14,
+    fontWeight: '700',
     color: theme.colors.text.primary,
-    textAlign: 'center',
+  },
+
+  // Action Container
+  actionContainer: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border + '40',
+    paddingTop: theme.spacing.sm,
+  },
+  actionHintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIcon: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  actionIconDisabled: {
+    fontSize: 14,
+    marginRight: 6,
   },
   actionHint: {
-    fontSize: 12,
+    fontSize: 13,
     color: theme.colors.primary,
-    textAlign: 'center',
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
   actionHintDisabled: {
     fontSize: 12,
     color: theme.colors.text.light,
-    textAlign: 'center',
-    fontStyle: 'italic',
+    fontWeight: '500',
   },
 });
