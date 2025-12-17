@@ -27,6 +27,25 @@ export interface StudentStatus {
   currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
 }
 
+export type PickupStatusState = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
+
+export interface PickupStatus {
+  status: PickupStatusState;
+  time?: number | { seconds: number; nanoseconds: number };
+  location?: Location;
+}
+
+export interface ChildStatus {
+  childId: string;
+  date: string;
+  morningPickup: PickupStatus;
+  schoolDropoff: PickupStatus;
+  schoolPickup: PickupStatus;
+  homeDropoff: PickupStatus;
+  currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
+  attendanceStatus?: string;
+}
+
 export interface Student {
   id: string;
   name: string;

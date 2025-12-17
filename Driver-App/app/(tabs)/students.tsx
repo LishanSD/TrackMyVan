@@ -13,9 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../src/context/AuthContext';
 import { firestore } from '../../src/config/firebaseConfig';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
-import { Location, Student } from '../../src/types/types';
+import { Student, ChildStatus, PickupStatus } from '../../src/types/types';
 
 export default function StudentsScreen() {
   const { user } = useAuth();
@@ -26,6 +26,9 @@ export default function StudentsScreen() {
   // Detail view modal
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<ChildStatus[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -86,6 +89,8 @@ export default function StudentsScreen() {
 
   const viewStudentDetails = (student: Student) => {
     setSelectedStudent(student);
+    setAttendanceHistory([]);
+    setAttendanceError(null);
     setDetailModalVisible(true);
   };
 
@@ -110,6 +115,107 @@ export default function StudentsScreen() {
   const getStatusText = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
+
+  const getCurrentStatusColor = (status: ChildStatus['currentStatus']) => {
+    switch (status) {
+      case 'AT_HOME':
+        return theme.colors.success;
+      case 'IN_VAN':
+        return theme.colors.primary;
+      case 'AT_SCHOOL':
+        return theme.colors.secondary;
+      default:
+        return theme.colors.text.secondary;
+    }
+  };
+
+  const formatCurrentStatus = (status: ChildStatus['currentStatus']) => status.replace(/_/g, ' ');
+
+  const getPickupStatusColor = (status: PickupStatus['status']) => {
+    switch (status) {
+      case 'COMPLETED':
+        return theme.colors.success;
+      case 'IN_PROGRESS':
+        return theme.colors.primary;
+      case 'SKIPPED':
+        return theme.colors.error;
+      default:
+        return theme.colors.warning;
+    }
+  };
+
+  const formatTimestamp = (value?: number | { seconds: number; nanoseconds: number }) => {
+    if (!value && value !== 0) return '—';
+    const date =
+      typeof value === 'number'
+        ? new Date(value)
+        : new Date(value.seconds * 1000 + value.nanoseconds / 1_000_000);
+
+    return isNaN(date.getTime())
+      ? '—'
+      : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateLabel = (dateString?: string) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    return isNaN(date.getTime())
+      ? dateString
+      : date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  useEffect(() => {
+    if (!detailModalVisible || !selectedStudent) return;
+    let isMounted = true;
+
+    const fetchAttendance = async () => {
+      setAttendanceLoading(true);
+      setAttendanceError(null);
+
+      try {
+        const datesRef = collection(firestore, 'childStatus', selectedStudent.id, 'dates');
+        const snapshot = await getDocs(datesRef);
+
+        if (!isMounted) return;
+
+        const records: ChildStatus[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          records.push({
+            childId: selectedStudent.id,
+            date: (data.date as string | undefined) ?? docSnap.id,
+            ...data,
+          } as ChildStatus);
+        });
+
+        records.sort((a, b) => {
+          const getTime = (d?: string) => {
+            if (!d) return 0;
+            const t = new Date(d).getTime();
+            return isNaN(t) ? 0 : t;
+          };
+          return getTime(b.date) - getTime(a.date);
+        });
+
+        setAttendanceHistory(records.slice(0, 14));
+      } catch (err) {
+        console.error('Failed to load attendance history', err);
+        if (isMounted) {
+          setAttendanceError('Unable to load attendance history right now.');
+        }
+      } finally {
+        if (isMounted) {
+          setAttendanceLoading(false);
+        }
+      }
+    };
+
+    fetchAttendance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [detailModalVisible, selectedStudent]);
 
   const pendingCount = students.filter((s) => s.status === 'pending').length;
   const approvedCount = students.filter((s) => s.status === 'approved').length;
@@ -305,6 +411,171 @@ export default function StudentsScreen() {
                       <Text style={styles.label}>Email:</Text>
                       <Text style={styles.valueSmall}>{selectedStudent.parentEmail ?? 'N/A'}</Text>
                     </View>
+                  </View>
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Attendance History</Text>
+                    {attendanceLoading ? (
+                      <View style={styles.attendanceLoading}>
+                        <ActivityIndicator color={theme.colors.primary} />
+                        <Text style={styles.attendanceSubtext}>Loading recent records...</Text>
+                      </View>
+                    ) : attendanceError ? (
+                      <Text style={styles.attendanceError}>{attendanceError}</Text>
+                    ) : attendanceHistory.length === 0 ? (
+                      <Text style={styles.attendanceSubtext}>No attendance records yet.</Text>
+                    ) : (
+                      attendanceHistory.map((record) => {
+                        const currentStatus = record.currentStatus ?? 'AT_HOME';
+                        return (
+                          <View key={record.date} style={styles.attendanceCard}>
+                            <View style={styles.attendanceHeader}>
+                              <Text style={styles.attendanceDate}>
+                                {formatDateLabel(record.date)}
+                              </Text>
+                              <View
+                                style={[
+                                  styles.attendanceChip,
+                                  {
+                                    backgroundColor: getCurrentStatusColor(currentStatus) + '20',
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.attendanceChipText,
+                                    { color: getCurrentStatusColor(currentStatus) },
+                                  ]}>
+                                  {formatCurrentStatus(currentStatus)}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.attendanceRow}>
+                              <View>
+                                <Text style={styles.attendanceLabel}>Morning pickup</Text>
+                                <Text style={styles.attendanceTime}>
+                                  {formatTimestamp(record.morningPickup?.time)}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.attendanceChip,
+                                  {
+                                    backgroundColor:
+                                      getPickupStatusColor(
+                                        record.morningPickup?.status ?? 'PENDING'
+                                      ) + '20',
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.attendanceChipText,
+                                    {
+                                      color: getPickupStatusColor(
+                                        record.morningPickup?.status ?? 'PENDING'
+                                      ),
+                                    },
+                                  ]}>
+                                  {record.morningPickup?.status ?? 'PENDING'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.attendanceRow}>
+                              <View>
+                                <Text style={styles.attendanceLabel}>School drop-off</Text>
+                                <Text style={styles.attendanceTime}>
+                                  {formatTimestamp(record.schoolDropoff?.time)}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.attendanceChip,
+                                  {
+                                    backgroundColor:
+                                      getPickupStatusColor(
+                                        record.schoolDropoff?.status ?? 'PENDING'
+                                      ) + '20',
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.attendanceChipText,
+                                    {
+                                      color: getPickupStatusColor(
+                                        record.schoolDropoff?.status ?? 'PENDING'
+                                      ),
+                                    },
+                                  ]}>
+                                  {record.schoolDropoff?.status ?? 'PENDING'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.attendanceRow}>
+                              <View>
+                                <Text style={styles.attendanceLabel}>School pickup</Text>
+                                <Text style={styles.attendanceTime}>
+                                  {formatTimestamp(record.schoolPickup?.time)}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.attendanceChip,
+                                  {
+                                    backgroundColor:
+                                      getPickupStatusColor(
+                                        record.schoolPickup?.status ?? 'PENDING'
+                                      ) + '20',
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.attendanceChipText,
+                                    {
+                                      color: getPickupStatusColor(
+                                        record.schoolPickup?.status ?? 'PENDING'
+                                      ),
+                                    },
+                                  ]}>
+                                  {record.schoolPickup?.status ?? 'PENDING'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.attendanceRow}>
+                              <View>
+                                <Text style={styles.attendanceLabel}>Home drop-off</Text>
+                                <Text style={styles.attendanceTime}>
+                                  {formatTimestamp(record.homeDropoff?.time)}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.attendanceChip,
+                                  {
+                                    backgroundColor:
+                                      getPickupStatusColor(
+                                        record.homeDropoff?.status ?? 'PENDING'
+                                      ) + '20',
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.attendanceChipText,
+                                    {
+                                      color: getPickupStatusColor(
+                                        record.homeDropoff?.status ?? 'PENDING'
+                                      ),
+                                    },
+                                  ]}>
+                                  {record.homeDropoff?.status ?? 'PENDING'}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })
+                    )}
                   </View>
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Home Location</Text>
@@ -607,6 +878,62 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text.primary,
     marginBottom: theme.spacing.sm,
+  },
+  attendanceLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  attendanceSubtext: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+  },
+  attendanceError: {
+    fontSize: 13,
+    color: theme.colors.error,
+  },
+  attendanceCard: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
+  attendanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  attendanceDate: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  attendanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  attendanceLabel: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+  },
+  attendanceTime: {
+    fontSize: 12,
+    color: theme.colors.text.light,
+  },
+  attendanceChip: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+  },
+  attendanceChipText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   detailMap: {
     height: 200,
