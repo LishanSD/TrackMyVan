@@ -60,7 +60,15 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
 
   // Get van status text
   const getVanStatus = () => {
-    if (!childStatus) return { text: 'No trip scheduled', icon: '📅' };
+    if (
+      !childStatus ||
+      !childStatus.morningPickup ||
+      !childStatus.schoolDropoff ||
+      !childStatus.schoolPickup ||
+      !childStatus.homeDropoff
+    ) {
+      return { text: 'No trip scheduled', icon: '📅' };
+    }
 
     const { morningPickup, schoolDropoff, schoolPickup, homeDropoff, currentStatus } = childStatus;
 
@@ -101,8 +109,8 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
     if (!childStatus) return { morning: '--:--', afternoon: '--:--' };
 
     return {
-      morning: formatTime(childStatus.morningPickup.time),
-      afternoon: formatTime(childStatus.schoolPickup.time),
+      morning: formatTime(childStatus.morningPickup?.time),
+      afternoon: formatTime(childStatus.schoolPickup?.time),
     };
   };
 
