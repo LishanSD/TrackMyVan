@@ -13,20 +13,6 @@ export default function DashboardScreen() {
             <Text style={styles.dashboardSubtitle}>Track your child's van in real-time</Text>
           </View>
 
-          {/* Van Status Card */}
-          <View style={styles.card}>
-            <View style={styles.vanStatusHeader}>
-              <Text style={styles.cardTitle}>Van Status</Text>
-              <View style={styles.statusPill}>
-                <Text style={styles.statusPillText}>Not Active</Text>
-              </View>
-            </View>
-            <Text style={styles.cardText}>The van is currently not on a trip</Text>
-            <TouchableOpacity style={styles.trackButton}>
-              <Text style={styles.trackButtonText}>Track Van Location</Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Child Info Card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Your Child</Text>
