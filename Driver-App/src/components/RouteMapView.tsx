@@ -1,18 +1,8 @@
-/**
- * Route Map View Component
- *
- * Displays an optimized route on a map with waypoint markers and route polyline
- * Uses react-native-maps with OpenStreetMap
- */
-
 import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { OptimizedRoute, Waypoint } from '../types/route.types';
-
-// ============================================================================
-// Props Interface
-// ============================================================================
+import { theme } from '../theme/theme';
 
 interface RouteMapViewProps {
   route: OptimizedRoute;
@@ -25,10 +15,6 @@ interface RouteMapViewProps {
   style?: any;
 }
 
-// ============================================================================
-// Component
-// ============================================================================
-
 export default function RouteMapView({
   route,
   currentLocation,
@@ -38,7 +24,6 @@ export default function RouteMapView({
 }: RouteMapViewProps) {
   const mapRef = useRef<MapView>(null);
 
-  // Auto-fit map to show all waypoints
   useEffect(() => {
     if (mapRef.current && route.waypoints.length > 0) {
       const coordinates = route.waypoints.map((w) => ({
@@ -46,14 +31,13 @@ export default function RouteMapView({
         longitude: w.location.longitude,
       }));
 
-      // Add current location to fit bounds
       if (currentLocation) {
         coordinates.push(currentLocation);
       }
 
       mapRef.current.fitToCoordinates(coordinates, {
         edgePadding: {
-          top: 50,
+          top: 100,
           right: 50,
           bottom: 50,
           left: 50,
@@ -63,7 +47,6 @@ export default function RouteMapView({
     }
   }, [route.waypoints, currentLocation]);
 
-  // Convert geometry to map coordinates
   const routeCoordinates = route.geometry
     ? route.geometry.map(([lng, lat]) => ({
         latitude: lat,
@@ -71,33 +54,28 @@ export default function RouteMapView({
       }))
     : [];
 
-  // Get marker color based on waypoint type and status
   const getMarkerColor = (waypoint: Waypoint): string => {
-    if (waypoint.status === 'COMPLETED') return '#10B981'; // Green
-    if (waypoint.status === 'IN_PROGRESS') return '#F59E0B'; // Orange
-    if (waypoint.status === 'SKIPPED') return '#6B7280'; // Gray
+    if (waypoint.status === 'COMPLETED') return '#10B981';
+    if (waypoint.status === 'IN_PROGRESS') return '#F59E0B';
+    if (waypoint.status === 'SKIPPED') return '#6B7280';
 
-    return waypoint.type === 'HOME' ? '#3B82F6' : '#8B5CF6'; // Blue for home, Purple for school
+    return waypoint.type === 'HOME' ? '#3B82F6' : '#8B5CF6';
   };
 
-  // Format ETA
   const formatETA = (timestamp?: number): string => {
     if (!timestamp) return '';
-
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Get marker title
   const getMarkerTitle = (waypoint: Waypoint): string => {
     const orderLabel = `#${waypoint.sequenceOrder + 1}`;
-    const typeLabel = waypoint.type === 'HOME' ? '🏠 Home' : '🏫 School';
+    const typeLabel = waypoint.type === 'HOME' ? 'Home' : 'School';
     const studentLabel = waypoint.studentName || 'Unknown';
 
     return `${orderLabel} - ${typeLabel}: ${studentLabel}`;
   };
 
-  // Get marker description
   const getMarkerDescription = (waypoint: Waypoint): string => {
     let desc = waypoint.location.address || '';
 
@@ -121,22 +99,20 @@ export default function RouteMapView({
         style={styles.map}
         provider={PROVIDER_DEFAULT}
         showsUserLocation={!!currentLocation}
-        showsMyLocationButton={true}
-        showsCompass={true}
-        showsScale={true}>
-        {/* Route polyline */}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        showsScale={false}>
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
-            strokeWidth={4}
-            strokeColor="#4A90E2"
+            strokeWidth={5}
+            strokeColor={theme.colors.primary}
             lineCap="round"
             lineJoin="round"
           />
         )}
 
-        {/* Waypoint markers */}
-        {route.waypoints.map((waypoint, index) => (
+        {route.waypoints.map((waypoint) => (
           <Marker
             key={waypoint.id}
             coordinate={{
@@ -145,47 +121,44 @@ export default function RouteMapView({
             }}
             title={getMarkerTitle(waypoint)}
             description={getMarkerDescription(waypoint)}
-            pinColor={getMarkerColor(waypoint)}
             onPress={() => onWaypointPress?.(waypoint)}>
-            {/* Custom marker with sequence number */}
             <View style={styles.markerContainer}>
               <View style={[styles.markerBubble, { backgroundColor: getMarkerColor(waypoint) }]}>
                 <Text style={styles.markerText}>{waypoint.sequenceOrder + 1}</Text>
               </View>
-              <View style={styles.markerArrow} />
+              <View style={[styles.markerArrow, { borderTopColor: getMarkerColor(waypoint) }]} />
             </View>
           </Marker>
         ))}
-
-        {/* Current location marker */}
-        {/* {currentLocation && (
-          <Marker coordinate={currentLocation} title="Current Location" pinColor="#EF4444">
-            <View style={styles.currentLocationMarker}>
-              <View style={styles.currentLocationDot} />
-            </View>
-          </Marker>
-        )} */}
       </MapView>
 
-      {/* Route summary overlay */}
       <View style={styles.summaryContainer}>
         <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Distance:</Text>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Distance</Text>
             <Text style={styles.summaryValue}>{(route.totalDistance / 1000).toFixed(1)} km</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Duration:</Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Duration</Text>
             <Text style={styles.summaryValue}>{Math.round(route.totalDuration / 60)} min</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Stops:</Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Stops</Text>
             <Text style={styles.summaryValue}>{route.waypoints.length}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Status:</Text>
+
+          <View style={styles.divider} />
+
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Status</Text>
             <Text style={[styles.summaryValue, styles[`status${route.status}`]]}>
-              {route.status}
+              {route.status.replace('_', ' ')}
             </Text>
           </View>
         </View>
@@ -194,47 +167,55 @@ export default function RouteMapView({
   );
 }
 
-// ============================================================================
-// Styles
-// ============================================================================
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#E5E7EB',
   },
   map: {
     flex: 1,
   },
   summaryContainer: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
+    top: 70,
+    left: 16,
+    right: 16,
   },
   summaryCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  summaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  divider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#F3F4F6',
   },
   summaryLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   summaryValue: {
     fontSize: 14,
     color: '#111827',
-    fontWeight: '600',
+    fontWeight: '800',
   },
   statusPENDING: {
     color: '#6B7280',
@@ -250,53 +231,39 @@ const styles = StyleSheet.create({
   },
   markerContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
   },
   markerBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   markerText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
   markerArrow: {
     width: 0,
     height: 0,
-    borderLeftWidth: 4,
-    borderRightWidth: 4,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
     borderTopWidth: 8,
     borderStyle: 'solid',
     backgroundColor: 'transparent',
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: 'white',
     marginTop: -2,
-  },
-  currentLocationMarker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  currentLocationDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#EF4444',
-    borderWidth: 2,
-    borderColor: 'white',
   },
 });

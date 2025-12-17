@@ -1,5 +1,3 @@
-// CHANGED: Removed all nativewind className usage and replaced with StyleSheet
-
 import React, { useState } from 'react';
 import {
   View,
@@ -12,10 +10,13 @@ import {
   Modal,
   TextInput,
   Image,
+  Dimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../src/context/AuthContext';
 import { theme } from '../../src/theme/theme';
+
+const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   const { user, userProfile, logout, updateProfile, uploadProfilePicture } = useAuth();
@@ -71,7 +72,10 @@ export default function SettingsScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'We need camera roll permissions to upload profile pictures.');
+      Alert.alert(
+        'Permission needed',
+        'We need camera roll permissions to upload profile pictures.'
+      );
       return;
     }
 
@@ -97,7 +101,6 @@ export default function SettingsScreen() {
     try {
       let profilePicUrl = formData.profilePic;
 
-      // Upload new image if selected
       if (selectedImage) {
         profilePicUrl = await uploadProfilePicture(selectedImage);
       }
@@ -120,108 +123,119 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}>
       <View style={styles.innerContainer}>
-        {/* Header */}
-        {/* CHANGED: Replaced className props with style */}
         <Text style={[styles.headerText, { color: theme.colors.text.primary }]}>Settings</Text>
 
-        {/* Profile Section */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
-            Profile Information
-          </Text>
-
-          {userProfile?.profilePic && (
-            <View style={styles.profilePicContainer}>
-              <Image
-                source={{ uri: userProfile.profilePic }}
-                style={styles.profilePic}
-              />
+        <View style={[styles.profileHeaderCard, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.profileMainRow}>
+            <View style={[styles.profilePicContainer, { borderColor: theme.colors.border }]}>
+              {userProfile?.profilePic ? (
+                <Image source={{ uri: userProfile.profilePic }} style={styles.profilePic} />
+              ) : (
+                <View style={[styles.profilePic, styles.profilePicPlaceholder]}>
+                  <Text style={styles.placeholderEmoji}>👤</Text>
+                </View>
+              )}
             </View>
-          )}
-
-          <View style={styles.infoBlock}>
-            <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Name</Text>
-            <Text style={[styles.value, { color: theme.colors.text.primary }]}>
-              {userProfile?.name || user?.displayName || 'Not set'}
-            </Text>
-          </View>
-
-          <View style={styles.infoBlock}>
-            <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Phone</Text>
-            <Text style={[styles.value, { color: theme.colors.text.primary }]}>
-              {userProfile?.phone || 'Not set'}
-            </Text>
-          </View>
-
-          <View style={styles.infoBlock}>
-            <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Email</Text>
-            <Text style={[styles.value, { color: theme.colors.text.primary }]}>
-              {user?.email || 'Not set'}
-            </Text>
-          </View>
-
-          {userProfile?.vanModel && (
-            <View style={styles.infoBlock}>
-              <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Van Model</Text>
-              <Text style={[styles.value, { color: theme.colors.text.primary }]}>
-                {userProfile.vanModel}
+            <View style={styles.headerInfo}>
+              <Text style={[styles.headerName, { color: theme.colors.text.primary }]}>
+                {userProfile?.name || user?.displayName || 'Not set'}
+              </Text>
+              <Text style={[styles.headerEmail, { color: theme.colors.text.secondary }]}>
+                {user?.email}
               </Text>
             </View>
-          )}
+          </View>
 
-          {userProfile?.licensePlateNo && (
-            <View style={styles.infoBlock}>
-              <Text style={[styles.label, { color: theme.colors.text.secondary }]}>License Plate</Text>
+          <View style={styles.divider} />
+
+          <View style={styles.detailsGrid}>
+            <View style={styles.gridItem}>
+              <Text style={[styles.label, { color: theme.colors.text.secondary }]}>Phone</Text>
               <Text style={[styles.value, { color: theme.colors.text.primary }]}>
-                {userProfile.licensePlateNo}
+                {userProfile?.phone || 'Not set'}
               </Text>
             </View>
-          )}
+            {userProfile?.vanModel && (
+              <View style={styles.gridItem}>
+                <Text style={[styles.label, { color: theme.colors.text.secondary }]}>
+                  Van Model
+                </Text>
+                <Text style={[styles.value, { color: theme.colors.text.primary }]}>
+                  {userProfile.vanModel}
+                </Text>
+              </View>
+            )}
+            {userProfile?.licensePlateNo && (
+              <View style={styles.gridItem}>
+                <Text style={[styles.label, { color: theme.colors.text.secondary }]}>
+                  License Plate
+                </Text>
+                <Text style={[styles.value, { color: theme.colors.text.primary }]}>
+                  {userProfile.licensePlateNo}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* Account Settings */}
         <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
             Account Settings
           </Text>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderColor: theme.colors.border }]}
-            onPress={handleEditProfile}>
-            <Text style={{ color: theme.colors.text.primary }}>Edit Profile</Text>
+            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            onPress={handleEditProfile}
+            activeOpacity={0.7}>
+            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
+              Edit Profile
+            </Text>
+            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderColor: theme.colors.border }]}
-            onPress={() => Alert.alert('Info', 'Change password feature coming soon')}>
-            <Text style={{ color: theme.colors.text.primary }}>Change Password</Text>
+            style={styles.cardButton}
+            onPress={() => Alert.alert('Info', 'Change password feature coming soon')}
+            activeOpacity={0.7}>
+            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
+              Change Password
+            </Text>
+            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>
 
-        {/* App Settings */}
         <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderColor: theme.colors.border }]}
-            onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}>
-            <Text style={{ color: theme.colors.text.primary }}>Notifications</Text>
+            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
+            activeOpacity={0.7}>
+            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
+              Notifications
+            </Text>
+            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderColor: theme.colors.border }]}
-            onPress={() => Alert.alert('Info', 'Privacy settings coming soon')}>
-            <Text style={{ color: theme.colors.text.primary }}>Privacy</Text>
+            style={styles.cardButton}
+            onPress={() => Alert.alert('Info', 'Privacy settings coming soon')}
+            activeOpacity={0.7}>
+            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>Privacy</Text>
+            <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Logout Button */}
         <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: theme.colors.error }]}
           onPress={handleLogout}
-          disabled={loading}>
+          disabled={loading}
+          activeOpacity={0.8}>
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -229,13 +243,11 @@ export default function SettingsScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Version Info */}
         <Text style={[styles.versionText, { color: theme.colors.text.light }]}>
           TrackMyVan Driver App v1.0.0
         </Text>
       </View>
 
-      {/* Edit Profile Modal */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -243,15 +255,18 @@ export default function SettingsScreen() {
         onRequestClose={() => setEditModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
-            <ScrollView>
+            <View style={styles.modalHeaderIndicator} />
+            <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
                 Edit Profile
               </Text>
 
-              {/* Profile Picture */}
               <View style={styles.profilePicEditContainer}>
-                <TouchableOpacity onPress={pickImage} style={styles.profilePicEditButton}>
-                  {(selectedImage || formData.profilePic) ? (
+                <TouchableOpacity
+                  onPress={pickImage}
+                  style={styles.profilePicEditButton}
+                  activeOpacity={0.9}>
+                  {selectedImage || formData.profilePic ? (
                     <Image
                       source={{ uri: selectedImage || formData.profilePic }}
                       style={styles.profilePicEdit}
@@ -262,16 +277,21 @@ export default function SettingsScreen() {
                       <Text style={styles.profilePicPlaceholderLabel}>Add Photo</Text>
                     </View>
                   )}
+                  <View style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}>
+                    <Text style={styles.editBadgeText}>✎</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 
-              {/* Name */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
                   Name *
                 </Text>
                 <TextInput
-                  style={[styles.input, { color: theme.colors.text.primary, borderColor: theme.colors.border }]}
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
                   value={formData.name}
                   onChangeText={(text) => setFormData({ ...formData, name: text })}
                   placeholder="Enter your name"
@@ -279,13 +299,15 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* Phone */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
                   Phone Number *
                 </Text>
                 <TextInput
-                  style={[styles.input, { color: theme.colors.text.primary, borderColor: theme.colors.border }]}
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
                   value={formData.phone}
                   onChangeText={(text) => setFormData({ ...formData, phone: text })}
                   placeholder="Enter your phone number"
@@ -294,13 +316,15 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* Van Model */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
                   Van Model
                 </Text>
                 <TextInput
-                  style={[styles.input, { color: theme.colors.text.primary, borderColor: theme.colors.border }]}
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
                   value={formData.vanModel}
                   onChangeText={(text) => setFormData({ ...formData, vanModel: text })}
                   placeholder="e.g., Toyota Hiace"
@@ -308,13 +332,15 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* License Plate */}
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
                   License Plate Number
                 </Text>
                 <TextInput
-                  style={[styles.input, { color: theme.colors.text.primary, borderColor: theme.colors.border }]}
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
                   value={formData.licensePlateNo}
                   onChangeText={(text) => setFormData({ ...formData, licensePlateNo: text })}
                   placeholder="e.g., ABC-1234"
@@ -323,10 +349,13 @@ export default function SettingsScreen() {
                 />
               </View>
 
-              {/* Buttons */}
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton, { borderColor: theme.colors.border }]}
+                  style={[
+                    styles.modalButton,
+                    styles.cancelButton,
+                    { borderColor: theme.colors.border },
+                  ]}
                   onPress={() => setEditModalVisible(false)}
                   disabled={saving}>
                   <Text style={[styles.modalButtonText, { color: theme.colors.text.primary }]}>
@@ -334,7 +363,11 @@ export default function SettingsScreen() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton, { backgroundColor: theme.colors.primary }]}
+                  style={[
+                    styles.modalButton,
+                    styles.saveButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
                   onPress={handleSaveProfile}
                   disabled={saving}>
                   {saving ? (
@@ -353,169 +386,267 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  // CHANGED: Replacing flex-1
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
   },
   innerContainer: {
     padding: theme.spacing.lg,
   },
-
-  // Header
   headerText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: theme.spacing.lg,
+    fontSize: 32,
+    fontWeight: '800',
+    marginBottom: 24,
+    letterSpacing: -0.5,
   },
-
-  // Cards
-  card: {
-    marginBottom: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
+  profileHeaderCard: {
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: theme.spacing.sm,
-  },
-
-  // Text blocks
-  infoBlock: {
-    marginBottom: theme.spacing.md,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  value: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-
-  // Buttons inside cards
-  cardButton: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
-    borderTopWidth: 1,
-  },
-
-  // Logout
-  logoutButton: {
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+  profileMainRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 20,
   },
-  logoutText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // Version text
-  versionText: {
-    textAlign: 'center',
-    marginTop: theme.spacing.lg,
-    fontSize: 13,
-  },
-
-  // Profile Picture
   profilePicContainer: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  profilePic: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.border,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: theme.spacing.lg,
-    maxHeight: '90%',
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: theme.spacing.lg,
-  },
-  profilePicEditContainer: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-  },
-  profilePicEditButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
     overflow: 'hidden',
   },
-  profilePicEdit: {
+  profilePic: {
     width: '100%',
     height: '100%',
   },
   profilePicPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: theme.colors.border,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
   },
   profilePicPlaceholderText: {
-    fontSize: 32,
+    fontSize: 36,
     marginBottom: 4,
   },
   profilePicPlaceholderLabel: {
     fontSize: 12,
-    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    color: '#6B7280',
   },
-  inputContainer: {
-    marginBottom: theme.spacing.md,
+  placeholderEmoji: {
+    fontSize: 32,
   },
-  inputLabel: {
+  headerInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  headerName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  headerEmail: {
     fontSize: 14,
-    marginBottom: 8,
+    fontWeight: '400',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 4,
+    marginBottom: 20,
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  gridItem: {
+    minWidth: '45%',
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  value: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  card: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
+    opacity: 0.6,
+  },
+  cardButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  buttonText: {
+    fontSize: 16,
     fontWeight: '500',
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.sm,
+  chevron: {
+    fontSize: 20,
+    color: '#D1D5DB',
+    fontWeight: '300',
+  },
+  logoutButton: {
+    marginTop: 12,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  logoutText: {
+    color: '#fff',
     fontSize: 16,
+    fontWeight: '700',
+  },
+  versionText: {
+    textAlign: 'center',
+    marginTop: 24,
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    paddingTop: 12,
+    maxHeight: '92%',
+  },
+  modalHeaderIndicator: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  profilePicEditContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  profilePicEditButton: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  profilePicEdit: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  editBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  input: {
+    height: 52,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    backgroundColor: '#F9FAFB',
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: theme.spacing.lg,
-    gap: theme.spacing.md,
+    marginTop: 24,
+    gap: 12,
+    marginBottom: 20,
   },
   modalButton: {
     flex: 1,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    height: 54,
+    borderRadius: 14,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   cancelButton: {
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
-  saveButton: {
-    // backgroundColor handled inline
-  },
+  saveButton: {},
   modalButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   modalButtonTextSave: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
   },
 });

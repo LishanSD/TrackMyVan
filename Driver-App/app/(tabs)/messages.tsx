@@ -10,7 +10,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { subscribeToDriverStudents } from '../../src/services/studentService';
 import {
@@ -38,7 +40,6 @@ export default function MessagesScreen() {
   const [messageText, setMessageText] = useState('');
   const [broadcastText, setBroadcastText] = useState('');
 
-  // Subscribe to driver's students (to know which parents they can message)
   useEffect(() => {
     if (!driverId) return;
 
@@ -57,7 +58,6 @@ export default function MessagesScreen() {
     return () => unsubscribe();
   }, [driverId]);
 
-  // Subscribe to messages for selected parent
   useEffect(() => {
     if (!driverId || !selectedTarget?.parentId) return;
 
@@ -119,15 +119,26 @@ export default function MessagesScreen() {
     const isDriver = item.senderRole === 'driver';
     return (
       <View
-        style={[
-          styles.messageBubble,
-          isDriver ? styles.messageBubbleDriver : styles.messageBubbleParent,
-        ]}>
-        <Text style={styles.messageSender}>
-          {isDriver ? 'You' : selectedTarget?.student?.parentName || 'Parent'}
-          {item.isBroadcast ? ' (Broadcast)' : ''}
-        </Text>
-        <Text style={styles.messageText}>{item.text}</Text>
+        style={[styles.messageRow, isDriver ? styles.messageRowDriver : styles.messageRowParent]}>
+        {!isDriver && (
+          <View style={styles.avatarSmall}>
+            <Ionicons name="person" size={12} color="#FFFFFF" />
+          </View>
+        )}
+        <View
+          style={[
+            styles.messageBubble,
+            isDriver ? styles.messageBubbleDriver : styles.messageBubbleParent,
+          ]}>
+          <Text
+            style={[styles.messageSender, isDriver ? styles.textWhiteAlpha : styles.textDarkAlpha]}>
+            {isDriver ? 'You' : selectedTarget?.student?.parentName || 'Parent'}
+            {item.isBroadcast ? ' • Broadcast' : ''}
+          </Text>
+          <Text style={[styles.messageText, isDriver ? styles.textWhite : styles.textDark]}>
+            {item.text}
+          </Text>
+        </View>
       </View>
     );
   };
@@ -143,81 +154,81 @@ export default function MessagesScreen() {
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <>
-              <Text style={styles.title}>Messages</Text>
-              <Text style={styles.subtitle}>
-                Chat with parents of your students and send broadcast updates.
-              </Text>
-
-              {/* Broadcast section */}
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Broadcast to all parents</Text>
-                <Text style={styles.cardDescription}>
-                  Send an announcement to parents of all students assigned to you.
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Type a broadcast message..."
-                  placeholderTextColor={theme.colors.text.light}
-                  value={broadcastText}
-                  onChangeText={setBroadcastText}
-                  multiline
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    !broadcastText.trim() && styles.buttonDisabled,
-                  ]}
-                  disabled={!broadcastText.trim()}
-                  onPress={handleSendBroadcast}>
-                  <Text style={styles.buttonText}>Send Broadcast</Text>
-                </TouchableOpacity>
+              <View style={styles.headerContainer}>
+                <Text style={styles.title}>Messages</Text>
+                <Text style={styles.subtitle}>Chat with parents & send updates</Text>
               </View>
 
-              {/* Conversation selector */}
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Conversations</Text>
-                {loadingStudents ? (
-                  <View style={styles.centerRow}>
-                    <ActivityIndicator color={theme.colors.primary} />
-                    <Text style={styles.mutedText}>Loading students...</Text>
-                  </View>
-                ) : parentOptions.length === 0 ? (
-                  <Text style={styles.mutedText}>
-                    No students with parents found yet.
-                  </Text>
-                ) : (
-                  <View style={styles.chipRow}>
-                    {parentOptions.map((student) => {
-                      const isSelected =
-                        selectedTarget?.parentId === student.parentId;
-                      return (
-                        <TouchableOpacity
-                          key={student.parentId}
-                          style={[
-                            styles.chip,
-                            isSelected && styles.chipSelected,
-                          ]}
-                          onPress={() =>
-                            setSelectedTarget({
-                              parentId: student.parentId!,
-                              student,
-                            })
-                          }>
-                          <Text
-                            style={[
-                              styles.chipText,
-                              isSelected && styles.chipTextSelected,
-                            ]}>
-                            {student.parentName || 'Parent'} ({student.name})
+                <View style={styles.cardHeader}>
+                  <Ionicons name="megaphone" size={20} color={theme.colors.secondary} />
+                  <Text style={styles.cardTitle}>Broadcast Announcement</Text>
+                </View>
+                <Text style={styles.cardDescription}>Send a message to all parents at once.</Text>
+                <View style={styles.broadcastInputContainer}>
+                  <TextInput
+                    style={styles.inputArea}
+                    placeholder="Type an announcement..."
+                    placeholderTextColor="#9CA3AF"
+                    value={broadcastText}
+                    onChangeText={setBroadcastText}
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={[styles.broadcastButton, !broadcastText.trim() && styles.buttonDisabled]}
+                    disabled={!broadcastText.trim()}
+                    onPress={handleSendBroadcast}>
+                    <Ionicons name="send" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Direct Messages</Text>
+              </View>
+
+              {loadingStudents ? (
+                <View style={styles.centerRow}>
+                  <ActivityIndicator color={theme.colors.primary} />
+                  <Text style={styles.mutedText}>Loading contacts...</Text>
+                </View>
+              ) : parentOptions.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="people-outline" size={32} color="#D1D5DB" />
+                  <Text style={styles.mutedText}>No parents linked yet.</Text>
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.chipScroll}
+                  contentContainerStyle={styles.chipScrollContent}>
+                  {parentOptions.map((student) => {
+                    const isSelected = selectedTarget?.parentId === student.parentId;
+                    return (
+                      <TouchableOpacity
+                        key={student.parentId}
+                        style={[styles.chip, isSelected && styles.chipSelected]}
+                        activeOpacity={isSelected ? 1 : 0.7}
+                        onPress={() =>
+                          setSelectedTarget({
+                            parentId: student.parentId!,
+                            student,
+                          })
+                        }>
+                        <View style={[styles.avatarChip, isSelected && styles.avatarChipSelected]}>
+                          <Text style={[styles.avatarText, isSelected && styles.textWhite]}>
+                            {student.name.charAt(0)}
                           </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-
-              {/* Conversation header & input live below list via ListFooterComponent */}
+                        </View>
+                        <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                          {student.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </>
           }
           data={selectedTarget ? messages : []}
@@ -225,48 +236,39 @@ export default function MessagesScreen() {
           renderItem={renderMessageItem}
           ListEmptyComponent={
             selectedTarget ? (
-              <View style={styles.card}>
+              <View style={styles.chatEmptyState}>
                 {loadingMessages ? (
-                  <View style={styles.centerRow}>
-                    <ActivityIndicator color={theme.colors.primary} />
-                    <Text style={styles.mutedText}>Loading messages...</Text>
-                  </View>
+                  <ActivityIndicator color={theme.colors.primary} />
                 ) : (
-                  <Text style={styles.mutedText}>No messages yet.</Text>
+                  <>
+                    <Ionicons name="chatbubbles-outline" size={48} color="#E5E7EB" />
+                    <Text style={styles.mutedText}>Start the conversation</Text>
+                  </>
                 )}
               </View>
             ) : (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Conversation</Text>
-                <Text style={styles.mutedText}>
-                  Select a parent above to start messaging.
-                </Text>
+              <View style={styles.chatPlaceholder}>
+                <Text style={styles.mutedText}>Select a student above to chat</Text>
               </View>
             )
           }
           ListFooterComponent={
             selectedTarget && (
-              <View style={[styles.card, styles.footerCard]}>
-                <Text style={styles.cardTitle}>Type a message</Text>
-                <View style={styles.inputRow}>
-                  <TextInput
-                    style={[styles.input, styles.inputFlex]}
-                    placeholder="Type a message..."
-                    placeholderTextColor={theme.colors.text.light}
-                    value={messageText}
-                    onChangeText={setMessageText}
-                    multiline
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.sendButton,
-                      !messageText.trim() && styles.buttonDisabled,
-                    ]}
-                    disabled={!messageText.trim()}
-                    onPress={handleSendMessage}>
-                    <Text style={styles.sendButtonText}>Send</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.chatInputContainer}>
+                <TextInput
+                  style={styles.chatInput}
+                  placeholder={`Message ${selectedTarget.student?.name}'s parent...`}
+                  placeholderTextColor="#9CA3AF"
+                  value={messageText}
+                  onChangeText={setMessageText}
+                  multiline
+                />
+                <TouchableOpacity
+                  style={[styles.sendButton, !messageText.trim() && styles.buttonDisabled]}
+                  disabled={!messageText.trim()}
+                  onPress={handleSendMessage}>
+                  <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
             )
           }
@@ -279,7 +281,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F9FAFB',
   },
   flex: {
     flex: 1,
@@ -288,145 +290,250 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: 40,
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
   },
   subtitle: {
     fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.lg,
+    color: '#6B7280',
+    marginTop: 4,
   },
   card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: '#F3F4F6',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: 4,
+    fontWeight: '700',
+    color: '#111827',
   },
   cardDescription: {
     fontSize: 13,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
+    color: '#6B7280',
+    marginBottom: 12,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.sm,
-  },
-  button: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.sm,
+  broadcastInputContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingRight: 6,
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  inputArea: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#111827',
+    maxHeight: 100,
   },
-  buttonText: {
-    color: theme.colors.surface,
-    fontWeight: '600',
+  broadcastButton: {
+    backgroundColor: theme.colors.secondary,
+    borderRadius: 8,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipRow: {
-    marginTop: theme.spacing.sm,
+  sectionHeader: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  chipScroll: {
+    marginBottom: 16,
+    flexGrow: 0,
+  },
+  chipScrollContent: {
+    paddingHorizontal: 20,
   },
   chip: {
-    paddingHorizontal: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
     paddingVertical: 6,
-    borderRadius: theme.borderRadius.full,
+    paddingRight: 12,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginRight: theme.spacing.sm,
-    backgroundColor: theme.colors.background,
+    borderColor: '#E5E7EB',
+    marginRight: 8,
   },
   chipSelected: {
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
   },
+  avatarChip: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  avatarChipSelected: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  avatarText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#6B7280',
+  },
   chipText: {
     fontSize: 13,
-    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    color: '#4B5563',
   },
   chipTextSelected: {
-    color: theme.colors.surface,
-    fontWeight: '600',
+    color: '#FFFFFF',
   },
-  mutedText: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
-  },
-  centerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: theme.spacing.sm,
-  },
-  messageBubble: {
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.xs,
-    maxWidth: '90%',
-  },
-  messageBubbleDriver: {
-    alignSelf: 'flex-end',
-    backgroundColor: theme.colors.primary,
-  },
-  messageBubbleParent: {
-    alignSelf: 'flex-start',
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  messageSender: {
-    fontSize: 11,
-    color: theme.colors.text.light,
-    marginBottom: 2,
-  },
-  messageText: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
-  },
-  inputRow: {
+  messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginTop: theme.spacing.sm,
+    marginBottom: 12,
+    paddingHorizontal: 20,
   },
-  inputFlex: {
+  messageRowDriver: {
+    justifyContent: 'flex-end',
+  },
+  messageRowParent: {
+    justifyContent: 'flex-start',
+  },
+  avatarSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#9CA3AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  messageBubble: {
+    padding: 12,
+    maxWidth: '80%',
+    borderRadius: 16,
+  },
+  messageBubbleDriver: {
+    backgroundColor: theme.colors.primary,
+    borderBottomRightRadius: 2,
+  },
+  messageBubbleParent: {
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  messageSender: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  textWhite: { color: '#FFFFFF' },
+  textDark: { color: '#1F2937' },
+  textWhiteAlpha: { color: 'rgba(255,255,255,0.7)' },
+  textDarkAlpha: { color: '#9CA3AF' },
+
+  chatInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 6,
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  chatInput: {
     flex: 1,
-    marginRight: theme.spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
+    maxHeight: 100,
   },
   sendButton: {
-    backgroundColor: theme.colors.secondary,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendButtonText: {
-    color: theme.colors.surface,
-    fontWeight: '600',
+  buttonDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#D1D5DB',
   },
-  footerCard: {
-    marginTop: theme.spacing.sm,
+
+  centerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    gap: 8,
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 20,
+    gap: 8,
+  },
+  chatEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  chatPlaceholder: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  mutedText: {
+    fontSize: 14,
+    color: '#9CA3AF',
   },
 });
-
-
