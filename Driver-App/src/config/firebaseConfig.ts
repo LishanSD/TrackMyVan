@@ -24,6 +24,8 @@ const auth = initializeAuth(app, {
 
 // Initialize Firestore
 const firestore = getFirestore(app);
+
+// Initialize Realtime Database
 const database = getDatabase(app);
 
 export { auth, firestore, database };

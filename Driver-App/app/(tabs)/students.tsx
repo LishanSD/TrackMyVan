@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -12,66 +13,50 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../src/context/AuthContext';
-import { firestore } from '../../src/config/firebaseConfig';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
-
-interface Location {
-  latitude: number;
-  longitude: number;
-  address?: string;
-}
-
-interface Student {
-  id: string;
-  name: string;
-  age: string;
-  grade: string;
-  parentEmail: string;
-  homeLocation: Location;
-  schoolLocation: Location;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-}
+import { Student, ChildStatus } from '../../src/types/types';
+import StudentListItem from '../../src/components/StudentListItem';
+import AttendanceHistory from '../../src/components/AttendanceHistory';
+import {
+  approveStudent,
+  rejectStudent,
+  subscribeToDriverStudents,
+  fetchAttendanceHistory,
+} from '../../src/services/studentService';
 
 export default function StudentsScreen() {
   const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Detail view modal
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<ChildStatus[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    setLoading(true);
 
-    const q = query(collection(firestore, 'students'), where('driverId', '==', user.uid));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const studentsData: Student[] = [];
-      snapshot.forEach((doc) => {
-        studentsData.push({ id: doc.id, ...doc.data() } as Student);
-      });
-      studentsData.sort((a, b) => {
-        if (a.status === 'pending' && b.status !== 'pending') return -1;
-        if (a.status !== 'pending' && b.status === 'pending') return 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-      setStudents(studentsData);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToDriverStudents(
+      user.uid,
+      (list) => {
+        setStudents(list);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
 
     return () => unsubscribe();
   }, [user]);
 
   const handleApprove = async (studentId: string) => {
     try {
-      await updateDoc(doc(firestore, 'students', studentId), {
-        status: 'approved',
-        approvedAt: new Date().toISOString(),
-      });
+      await approveStudent(studentId);
       Alert.alert('Success', 'Student approved successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -86,10 +71,7 @@ export default function StudentsScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await updateDoc(doc(firestore, 'students', studentId), {
-              status: 'rejected',
-              rejectedAt: new Date().toISOString(),
-            });
+            await rejectStudent(studentId);
             Alert.alert('Success', 'Student request rejected');
           } catch (error: any) {
             Alert.alert('Error', error.message);
@@ -101,12 +83,23 @@ export default function StudentsScreen() {
 
   const viewStudentDetails = (student: Student) => {
     setSelectedStudent(student);
+    setAttendanceHistory([]);
+    setAttendanceError(null);
     setDetailModalVisible(true);
   };
 
   const getFilteredStudents = () => {
-    if (filter === 'all') return students;
-    return students.filter((s) => s.status === filter);
+    const statusFiltered =
+      filter === 'all' ? students : students.filter((s) => s.status === filter);
+
+    if (!searchQuery.trim()) return statusFiltered;
+
+    const query = searchQuery.toLowerCase();
+
+    return statusFiltered.filter((s) => {
+      const fields = [s.name, s.parentName, s.grade];
+      return fields.some((field) => field?.toLowerCase().includes(query));
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -125,6 +118,37 @@ export default function StudentsScreen() {
   const getStatusText = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
+
+  useEffect(() => {
+    if (!detailModalVisible || !selectedStudent) return;
+    let isMounted = true;
+
+    const fetchAttendance = async () => {
+      setAttendanceLoading(true);
+      setAttendanceError(null);
+
+      try {
+        const records = await fetchAttendanceHistory(selectedStudent.id, 14);
+        if (!isMounted) return;
+        setAttendanceHistory(records);
+      } catch (err) {
+        console.error('Failed to load attendance history', err);
+        if (isMounted) {
+          setAttendanceError('Unable to load attendance history right now.');
+        }
+      } finally {
+        if (isMounted) {
+          setAttendanceLoading(false);
+        }
+      }
+    };
+
+    fetchAttendance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [detailModalVisible, selectedStudent]);
 
   const pendingCount = students.filter((s) => s.status === 'pending').length;
   const approvedCount = students.filter((s) => s.status === 'approved').length;
@@ -159,6 +183,24 @@ export default function StudentsScreen() {
             </View>
           </View>
 
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search by student, parent, or grade"
+              placeholderTextColor={theme.colors.text.light}
+              style={styles.searchInput}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity style={styles.clearSearchButton} onPress={() => setSearchQuery('')}>
+                <Text style={styles.clearSearchText}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Filter Tabs */}
           <View style={styles.filterContainer}>
             <TouchableOpacity
@@ -188,70 +230,27 @@ export default function StudentsScreen() {
           {filteredStudents.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>
-                {filter === 'all' ? 'No students yet' : `No ${filter} students`}
+                {searchQuery.trim()
+                  ? 'No students match your search'
+                  : filter === 'all'
+                    ? 'No students yet'
+                    : `No ${filter} students`}
               </Text>
               <Text style={styles.emptySubtext}>
-                Students will appear here when parents add them
+                {searchQuery.trim()
+                  ? 'Try a different name, parent, or grade'
+                  : 'Students will appear here when parents add them'}
               </Text>
             </View>
           ) : (
             filteredStudents.map((student) => (
-              <TouchableOpacity
+              <StudentListItem
                 key={student.id}
-                style={styles.studentCard}
-                onPress={() => viewStudentDetails(student)}
-                activeOpacity={0.7}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.studentName}>{student.name}</Text>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(student.status) + '20' },
-                    ]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(student.status) }]}>
-                      {getStatusText(student.status)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Age:</Text>
-                  <Text style={styles.value}>{student.age} years</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Grade:</Text>
-                  <Text style={styles.value}>{student.grade}</Text>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Parent:</Text>
-                  <Text style={styles.valueSmall}>{student.parentName}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Phone:</Text>
-                  <Text style={styles.valueSmall}>{student.parentPhone}</Text>
-                </View>
-
-                {student.status === 'pending' ? (
-                  <View style={styles.actionButtons}>
-                    <TouchableOpacity
-                      style={styles.rejectButton}
-                      onPress={() => handleReject(student.id)}>
-                      <Text style={styles.rejectButtonText}>Reject</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.approveButton}
-                      onPress={() => handleApprove(student.id)}>
-                      <Text style={styles.approveButtonText}>Approve</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Text style={styles.tapHint}>Tap to view locations</Text>
-                )}
-              </TouchableOpacity>
+                student={student}
+                onPress={viewStudentDetails}
+                onApprove={handleApprove}
+                onReject={handleReject}
+              />
             ))
           )}
         </View>
@@ -273,14 +272,17 @@ export default function StudentsScreen() {
                     <View
                       style={[
                         styles.statusBadge,
-                        { backgroundColor: getStatusColor(selectedStudent.status) + '20' },
+                        {
+                          backgroundColor:
+                            getStatusColor(selectedStudent.status ?? 'pending') + '20',
+                        },
                       ]}>
                       <Text
                         style={[
                           styles.statusText,
-                          { color: getStatusColor(selectedStudent.status) },
+                          { color: getStatusColor(selectedStudent.status ?? 'pending') },
                         ]}>
-                        {getStatusText(selectedStudent.status)}
+                        {getStatusText(selectedStudent.status ?? 'pending')}
                       </Text>
                     </View>
                   </View>
@@ -289,11 +291,13 @@ export default function StudentsScreen() {
                     <Text style={styles.detailSectionTitle}>Student Info</Text>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Age:</Text>
-                      <Text style={styles.value}>{selectedStudent.age} years</Text>
+                      <Text style={styles.value}>
+                        {selectedStudent.age ? `${selectedStudent.age} years` : 'N/A'}
+                      </Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Grade:</Text>
-                      <Text style={styles.value}>{selectedStudent.grade}</Text>
+                      <Text style={styles.value}>{selectedStudent.grade ?? 'N/A'}</Text>
                     </View>
                   </View>
 
@@ -301,16 +305,24 @@ export default function StudentsScreen() {
                     <Text style={styles.detailSectionTitle}>Parent Info</Text>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Name:</Text>
-                      <Text style={styles.valueSmall}>{selectedStudent.parentName}</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentName ?? 'N/A'}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Phone:</Text>
-                      <Text style={styles.valueSmall}>{selectedStudent.parentPhone}</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentPhone ?? 'N/A'}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Text style={styles.label}>Email:</Text>
-                      <Text style={styles.valueSmall}>{selectedStudent.parentEmail}</Text>
+                      <Text style={styles.valueSmall}>{selectedStudent.parentEmail ?? 'N/A'}</Text>
                     </View>
+                  </View>
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Attendance History</Text>
+                    <AttendanceHistory
+                      attendanceHistory={attendanceHistory}
+                      loading={attendanceLoading}
+                      error={attendanceError}
+                    />
                   </View>
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Home Location</Text>
@@ -444,6 +456,34 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: theme.colors.text.secondary,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: theme.colors.text.primary,
+  },
+  clearSearchButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.border,
+    borderRadius: theme.borderRadius.full,
+  },
+  clearSearchText: {
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    fontSize: 12,
   },
   filterContainer: {
     flexDirection: 'row',

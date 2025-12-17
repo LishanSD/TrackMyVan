@@ -33,38 +33,13 @@ import { useAuth } from '../../src/context/AuthContext';
 import { theme } from '../../src/theme/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
-
-// --- TYPE DEFINITIONS ---
-type TripType = 'MORNING' | 'AFTERNOON';
-type ChildActionEvent = 'PICKUP' | 'DROPOFF';
-
-interface LocationRecord {
-  status: 'COMPLETED' | 'PENDING';
-  time: FieldValue;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
-  tripId: string;
-}
-
-interface StudentStatus {
-  morningPickup: LocationRecord;
-  schoolDropoff: LocationRecord;
-  schoolPickup: LocationRecord;
-  homeDropoff: LocationRecord;
-  currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
-}
-
-interface Student {
-  id: string;
-  name: string;
-  driverId: string;
-  parentId: string;
-  currentVanStatus: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF';
-  homeLocation: { latitude: number; longitude: number };
-  schoolLocation: { latitude: number; longitude: number };
-}
+import {
+  TripType,
+  ChildActionEvent,
+  LocationRecord,
+  StudentStatus,
+  Student,
+} from '../../src/types/types';
 
 // --- CONFIGURATION ---
 const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
@@ -162,7 +137,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
         <View style={styles.studentInfo}>
           <Text style={styles.studentName}>{student.name}</Text>
           <Text style={styles.studentStatus}>
-            Status: {student.currentVanStatus.replace(/_/g, ' ')}
+            Status: {(student.currentVanStatus ?? 'NOT_PICKED_UP').replace(/_/g, ' ')}
           </Text>
         </View>
         {action ? (
