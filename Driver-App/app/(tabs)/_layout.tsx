@@ -60,6 +60,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>⚙️</Text>,
         }}
       />
+      {/* Route tab removed - functionality integrated into Map tab */}
+      <Tabs.Screen name="route" options={{ href: null }} />
     </Tabs>
   );
 }

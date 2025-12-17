@@ -30,6 +30,8 @@ import { ref, set } from 'firebase/database';
 // Import database (RTDB) and firestore (FS) from config
 import { firestore, database } from '../../src/config/firebaseConfig';
 import { useAuth } from '../../src/context/AuthContext';
+import { useTrip } from '../../src/context/TripContext';
+import { calculateOptimalRoute } from '../../src/services/routeOptimizationService';
 import { theme } from '../../src/theme/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
@@ -180,8 +182,10 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 // --- DASHBOARD SCREEN ---
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const { setTripData, endTrip: endTripContext, isActive, tripState } = useTrip();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
 
   // Press states for visual feedback
   const [isPressingStartEnd, setIsPressingStartEnd] = useState(false);
@@ -300,7 +304,10 @@ export default function DashboardScreen() {
     const permissionsGranted = await requestPermissions();
     if (!permissionsGranted) return;
 
+    setIsCalculatingRoute(true);
+
     try {
+      // Fetch students
       const studentsQuery = query(
         collection(firestore, 'students'),
         where('driverId', '==', driverId),
@@ -316,15 +323,34 @@ export default function DashboardScreen() {
           }) as Student
       );
 
+      if (fetchedStudents.length === 0) {
+        Alert.alert('No Students', 'You have no approved students for this trip.');
+        setIsCalculatingRoute(false);
+        return;
+      }
+
       setStudents(fetchedStudents);
 
+      // Calculate optimal route
+      console.log('Calculating optimal route...');
+      const today = new Date().toISOString().split('T')[0];
+      const optimizedRoute = await calculateOptimalRoute(
+        driverId,
+        today,
+        tripType,
+        undefined, // Let it use current location
+        true // Force recalculation
+      );
+
+      console.log('Route calculated:', optimizedRoute.id);
+
+      // Create trip in Firestore
       const tripId = driverId + '_' + Date.now();
       const tripDocRef = doc(firestore, 'trips', tripId);
       const initialChildrenStatus = fetchedStudents.map((s) => ({
         childId: s.id,
         status: 'NOT_PICKED_UP',
       }));
-      const today = new Date().toISOString().split('T')[0];
 
       await setDoc(tripDocRef, {
         driverId: driverId,
@@ -340,6 +366,10 @@ export default function DashboardScreen() {
       await AsyncStorage.setItem('driverId', driverId);
       await AsyncStorage.setItem('currentTripId', tripId);
 
+      // Save route to TripContext
+      setTripData(tripId, tripType, optimizedRoute);
+
+      // Start background location tracking
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.BestForNavigation,
         distanceInterval: 10,
@@ -354,28 +384,41 @@ export default function DashboardScreen() {
 
       setIsTripActive(true);
       setTripStatusText(`Trip IN_PROGRESS: ${tripType}`);
-      Alert.alert('Trip Started', 'Real-time location sharing is now active.');
+      setIsCalculatingRoute(false);
+
+      const routeInfo = `Route optimized: ${optimizedRoute.waypoints.length} stops, ${(optimizedRoute.totalDistance / 1000).toFixed(1)} km`;
+      Alert.alert('Trip Started', `${routeInfo}\n\nReal-time location sharing is now active.`);
     } catch (error) {
       console.error('Error starting trip:', error);
-      Alert.alert('Error', 'Failed to start trip. Check logs.');
+      setIsCalculatingRoute(false);
+      Alert.alert('Error', `Failed to start trip: ${error}`);
     }
   };
 
   const handleEndTrip = async () => {
     if (!driverId || !currentTripId) return;
     try {
+      // Stop background location tracking
       if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
       }
+
+      // Update trip in Firestore
       await updateDoc(doc(firestore, 'trips', currentTripId), {
         status: 'COMPLETED',
         endTime: serverTimestamp(),
       });
+
+      // End trip in context (this will stop location tracking and broadcast to map)
+      endTripContext();
+
+      // Clean up local state
       await AsyncStorage.removeItem('currentTripId');
       setCurrentTripId(null);
       setStudents([]);
       setIsTripActive(false);
       setTripStatusText('No active trip');
+
       Alert.alert('Trip Ended', 'Location tracking has stopped.');
     } catch (error) {
       console.error('Error ending trip:', error);
@@ -406,14 +449,22 @@ export default function DashboardScreen() {
   };
 
   const actionButtonStyle = isTripActive ? styles.actionButtonEnd : styles.actionButtonStart;
-  const actionButtonTitle = isTripActive ? 'End Trip' : 'Start Trip';
-  const actionButtonText = isTripActive ? 'Tap to stop tracking' : 'Tap to begin tracking';
+  const actionButtonTitle = isTripActive
+    ? 'End Trip'
+    : isCalculatingRoute
+      ? 'Calculating Route...'
+      : 'Start Trip';
+  const actionButtonText = isTripActive
+    ? 'Tap to stop tracking'
+    : isCalculatingRoute
+      ? 'Please wait'
+      : 'Tap to begin tracking';
   const actionHandler = isTripActive ? handleEndTrip : handleStartTrip;
   const tripStatusColor = isTripActive ? theme.colors.success : theme.colors.text.secondary;
 
   const buttonStyle = {
     ...(isTripActive ? styles.actionButtonEnd : styles.actionButtonStart),
-    opacity: isPressingStartEnd ? 0.8 : 1.0,
+    opacity: isPressingStartEnd || isCalculatingRoute ? 0.8 : 1.0,
   };
 
   return (
