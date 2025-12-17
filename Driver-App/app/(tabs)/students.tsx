@@ -12,12 +12,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../src/context/AuthContext';
-import { firestore } from '../../src/config/firebaseConfig';
-import { collection, query, where, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
 import { Student, ChildStatus } from '../../src/types/types';
 import StudentListItem from '../../src/components/StudentListItem';
 import AttendanceHistory from '../../src/components/AttendanceHistory';
+import {
+  approveStudent,
+  rejectStudent,
+  subscribeToDriverStudents,
+  fetchAttendanceHistory,
+} from '../../src/services/studentService';
 
 export default function StudentsScreen() {
   const { user } = useAuth();
@@ -34,34 +38,23 @@ export default function StudentsScreen() {
 
   useEffect(() => {
     if (!user) return;
+    setLoading(true);
 
-    const q = query(collection(firestore, 'students'), where('driverId', '==', user.uid));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const studentsData: Student[] = [];
-      snapshot.forEach((doc) => {
-        studentsData.push({ id: doc.id, ...doc.data() } as Student);
-      });
-      const getTime = (value?: string) => (value ? new Date(value).getTime() : 0);
-
-      studentsData.sort((a, b) => {
-        if (a.status === 'pending' && b.status !== 'pending') return -1;
-        if (a.status !== 'pending' && b.status === 'pending') return 1;
-        return getTime(b.createdAt) - getTime(a.createdAt);
-      });
-      setStudents(studentsData);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToDriverStudents(
+      user.uid,
+      (list) => {
+        setStudents(list);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
 
     return () => unsubscribe();
   }, [user]);
 
   const handleApprove = async (studentId: string) => {
     try {
-      await updateDoc(doc(firestore, 'students', studentId), {
-        status: 'approved',
-        approvedAt: new Date().toISOString(),
-      });
+      await approveStudent(studentId);
       Alert.alert('Success', 'Student approved successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -76,10 +69,7 @@ export default function StudentsScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await updateDoc(doc(firestore, 'students', studentId), {
-              status: 'rejected',
-              rejectedAt: new Date().toISOString(),
-            });
+            await rejectStudent(studentId);
             Alert.alert('Success', 'Student request rejected');
           } catch (error: any) {
             Alert.alert('Error', error.message);
@@ -127,31 +117,9 @@ export default function StudentsScreen() {
       setAttendanceError(null);
 
       try {
-        const datesRef = collection(firestore, 'childStatus', selectedStudent.id, 'dates');
-        const snapshot = await getDocs(datesRef);
-
+        const records = await fetchAttendanceHistory(selectedStudent.id, 14);
         if (!isMounted) return;
-
-        const records: ChildStatus[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          records.push({
-            childId: selectedStudent.id,
-            date: (data.date as string | undefined) ?? docSnap.id,
-            ...data,
-          } as ChildStatus);
-        });
-
-        records.sort((a, b) => {
-          const getTime = (d?: string) => {
-            if (!d) return 0;
-            const t = new Date(d).getTime();
-            return isNaN(t) ? 0 : t;
-          };
-          return getTime(b.date) - getTime(a.date);
-        });
-
-        setAttendanceHistory(records.slice(0, 14));
+        setAttendanceHistory(records);
       } catch (err) {
         console.error('Failed to load attendance history', err);
         if (isMounted) {
