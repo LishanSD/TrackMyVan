@@ -19,7 +19,8 @@ import {
   updateRouteStatus,
   updateWaypointStatus,
 } from './routeStorageService';
-import { Student, getDriverStudents, filterStudentsWithValidLocations } from './studentService';
+import { getDriverStudents, filterStudentsWithValidLocations } from './studentService';
+import { Student } from '../types/types';
 import {
   OptimizedRoute,
   Waypoint,
@@ -222,59 +223,136 @@ function buildWaypoints(students: Student[], tripType: TripType): Waypoint[] {
 }
 
 /**
- * Optimize waypoint order using ORS Optimization API
+ * Optimize waypoint order for a given subset (homes only, or schools only)
+ * using ORS Optimization API.
+ *
+ * This returns the subset waypoints in optimized visiting order, without
+ * assigning sequenceOrder or ETAs – the caller is responsible for that.
  */
-async function optimizeWaypointsWithORS(
-  waypoints: Waypoint[],
-  tripType: TripType,
+async function optimizeWaypointSubset(
+  subset: Waypoint[],
   startLocation?: { latitude: number; longitude: number }
 ): Promise<Waypoint[]> {
-  // Convert waypoints to ORS jobs
-  const jobs: ORSJob[] = waypoints.map((waypoint, index) => ({
+  if (subset.length === 0) {
+    return [];
+  }
+
+  // Convert subset to ORS jobs
+  const jobs: ORSJob[] = subset.map((waypoint, index) => ({
     id: index,
     location: locationToCoordinate(waypoint.location),
-    service: 60, // 1 minute per stop for pickup/dropoff
+    service: 60, // 1 minute per stop
   }));
 
-  // Define vehicle
+  // Define vehicle, starting from explicit startLocation if provided,
+  // otherwise from the first waypoint in this subset.
   const vehicle: ORSVehicle = {
     id: 1,
     profile: 'driving-car',
-    start: startLocation ? locationToCoordinate(startLocation) : jobs[0].location, // Start at first waypoint if no start location
+    start: startLocation ? locationToCoordinate(startLocation) : jobs[0].location,
   };
 
-  // Build optimization request
   const request: ORSOptimizationRequest = {
     jobs,
     vehicles: [vehicle],
     options: {
-      g: false, // We'll get geometry separately with Directions API
+      g: false,
     },
   };
 
-  // Call ORS Optimization API
   const response = await orsOptimizeRoute(request);
 
   if (!response.routes || response.routes.length === 0) {
     throw new RouteOptimizationError(RouteErrorType.NO_ROUTE_FOUND, 'No optimized route found');
   }
 
-  // Extract optimized order
   const optimizedRoute = response.routes[0];
-  const optimizedWaypoints: Waypoint[] = [];
+  const optimizedSubset: Waypoint[] = [];
 
-  let jobSequence = 0; // Separate counter for jobs only
   optimizedRoute.steps.forEach((step) => {
     if (step.type === 'job' && step.job !== undefined) {
-      const waypoint = { ...waypoints[step.job] };
-      waypoint.sequenceOrder = jobSequence; // Use job counter instead of step index
-      waypoint.estimatedArrivalTime = Date.now() + step.duration * 1000;
-      optimizedWaypoints.push(waypoint);
-      jobSequence++; // Increment job counter
+      const wp = { ...subset[step.job] };
+      optimizedSubset.push(wp);
     }
   });
 
-  return optimizedWaypoints;
+  return optimizedSubset;
+}
+
+/**
+ * Optimize waypoint order using ORS Optimization API while enforcing business rules:
+ *
+ * MORNING:
+ *   - Visit ALL HOMES first (in best order),
+ *   - then visit ALL SCHOOLS (in best order, starting from the last home).
+ *
+ * AFTERNOON:
+ *   - Visit ALL SCHOOLS first (in best order),
+ *   - then visit ALL HOMES (in best order, starting from the last school).
+ */
+async function optimizeWaypointsWithORS(
+  waypoints: Waypoint[],
+  tripType: TripType,
+  startLocation?: { latitude: number; longitude: number }
+): Promise<Waypoint[]> {
+  // Split waypoints by type
+  const homeWaypoints = waypoints.filter((w) => w.type === 'HOME');
+  const schoolWaypoints = waypoints.filter((w) => w.type === 'SCHOOL');
+
+  if (homeWaypoints.length === 0 && schoolWaypoints.length === 0) {
+    throw new RouteOptimizationError(
+      RouteErrorType.INVALID_INPUT,
+      'No waypoints available to optimize route'
+    );
+  }
+
+  // Primary (first) and secondary (second) phase sets + their optimized orders
+  let firstSet: Waypoint[] = [];
+  let secondSet: Waypoint[] = [];
+
+  if (tripType === 'MORNING') {
+    // Morning: homes first, then schools
+    firstSet = await optimizeWaypointSubset(homeWaypoints, startLocation);
+
+    const lastOfFirst = firstSet[firstSet.length - 1] ?? homeWaypoints[0] ?? schoolWaypoints[0];
+    const secondStartLocation = lastOfFirst
+      ? {
+          latitude: lastOfFirst.location.latitude,
+          longitude: lastOfFirst.location.longitude,
+        }
+      : startLocation;
+
+    secondSet = await optimizeWaypointSubset(schoolWaypoints, secondStartLocation);
+  } else {
+    // Afternoon: schools first, then homes
+    firstSet = await optimizeWaypointSubset(schoolWaypoints, startLocation);
+
+    const lastOfFirst = firstSet[firstSet.length - 1] ?? schoolWaypoints[0] ?? homeWaypoints[0];
+    const secondStartLocation = lastOfFirst
+      ? {
+          latitude: lastOfFirst.location.latitude,
+          longitude: lastOfFirst.location.longitude,
+        }
+      : startLocation;
+
+    secondSet = await optimizeWaypointSubset(homeWaypoints, secondStartLocation);
+  }
+
+  // Combine in strict visiting order: first phase, then second phase
+  const orderedWaypoints: Waypoint[] = [...firstSet, ...secondSet];
+
+  // Assign sequenceOrder and simple increasing ETAs so marker numbers and titles
+  // reflect the visiting order. Exact timing is refined by the Directions API later.
+  const now = Date.now();
+  let sequenceCounter = 0;
+
+  const finalWaypoints: Waypoint[] = orderedWaypoints.map((wp, index) => ({
+    ...wp,
+    sequenceOrder: sequenceCounter++,
+    estimatedArrivalTime: now + index * 60_000,
+  }));
+
+  return finalWaypoints;
 }
 
 /**
