@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Image,
   // TouchableOpacity removed
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -213,7 +214,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 
 // --- DASHBOARD SCREEN ---
 export default function DashboardScreen() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { setTripData, endTrip: endTripContext, isActive, tripState } = useTrip();
   const router = useRouter();
   const [isTripActive, setIsTripActive] = useState(false);
@@ -563,7 +564,17 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.container}>
-          <Text style={styles.dashboardTitle}>Dashboard</Text>
+          <View style={styles.dashboardHeader}>
+            <View style={styles.dashboardTitleContainer}>
+              <Text style={styles.dashboardTitle}>Dashboard</Text>
+            </View>
+            {userProfile?.profilePic && (
+              <Image
+                source={{ uri: userProfile.profilePic }}
+                style={styles.dashboardProfilePic}
+              />
+            )}
+          </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
@@ -650,11 +661,25 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.colors.background },
   scrollView: { flex: 1 },
   container: { padding: theme.spacing.lg },
-  dashboardTitle: {
+  dashboardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: theme.spacing.md,
+  },
+  dashboardTitleContainer: {
+    flex: 1,
+  },
+  dashboardTitle: {
     fontSize: 30,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
+  },
+  dashboardProfilePic: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: theme.colors.border,
   },
   card: {
     marginBottom: theme.spacing.md,
