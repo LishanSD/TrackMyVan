@@ -19,7 +19,6 @@ export default function TrackingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  // Fetch student data
   useEffect(() => {
     const fetchStudent = async () => {
       if (!childId) {
@@ -49,7 +48,6 @@ export default function TrackingScreen() {
     fetchStudent();
   }, [childId]);
 
-  // Subscribe to driver location updates
   useEffect(() => {
     if (!student?.driverId) return;
 
@@ -112,7 +110,10 @@ export default function TrackingScreen() {
         <View style={styles.errorContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error || 'Student data not available'}</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            activeOpacity={0.8}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -122,42 +123,49 @@ export default function TrackingScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backIconButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backIconButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
 
         <View style={styles.headerContent}>
-          <Text style={styles.studentName}>{student.name}</Text>
+          <Text style={styles.studentName} numberOfLines={1}>
+            {student.name}
+          </Text>
           <View style={styles.statusRow}>
             <View
               style={[
                 styles.statusBadge,
-                { backgroundColor: getStatusColor(student.status) + '20' },
+                { backgroundColor: getStatusColor(student.status) + '15' },
               ]}>
+              <View
+                style={[styles.statusDot, { backgroundColor: getStatusColor(student.status) }]}
+              />
               <Text style={[styles.statusText, { color: getStatusColor(student.status) }]}>
-                {student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+                {student.status.toUpperCase()}
               </Text>
             </View>
           </View>
         </View>
       </View>
 
-      {/* Info Bar */}
       <View style={styles.infoBar}>
         <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Driver:</Text>
-          <Text style={styles.infoValue}>{student.driverName}</Text>
+          <Text style={styles.infoLabel}>DRIVER</Text>
+          <Text style={styles.infoValue} numberOfLines={1}>
+            {student.driverName}
+          </Text>
         </View>
-        <View style={styles.divider} />
+        <View style={styles.verticalDivider} />
         <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Last Update:</Text>
+          <Text style={styles.infoLabel}>LAST UPDATE</Text>
           <Text style={styles.infoValue}>{formatLastUpdate()}</Text>
         </View>
       </View>
 
-      {/* Map */}
       <View style={styles.mapContainer}>
         <TrackingMap
           homeLocation={student.homeLocation}
@@ -167,6 +175,10 @@ export default function TrackingScreen() {
           loading={false}
           error={null}
         />
+        <View style={styles.liveIndicator}>
+          <View style={styles.pulseDot} />
+          <Text style={styles.liveText}>LIVE TRACKING</Text>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -175,117 +187,166 @@ export default function TrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.xl,
+    padding: 32,
   },
   loadingText: {
-    marginTop: theme.spacing.md,
-    fontSize: 16,
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: '500',
     color: theme.colors.text.secondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.xl,
+    padding: 32,
   },
   errorIcon: {
-    fontSize: 64,
-    marginBottom: theme.spacing.lg,
+    fontSize: 50,
+    marginBottom: 20,
   },
   errorText: {
     fontSize: 16,
     color: theme.colors.error,
     textAlign: 'center',
-    marginBottom: theme.spacing.lg,
+    fontWeight: '600',
+    marginBottom: 24,
   },
   backButton: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   backButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: '#F3F4F6',
   },
   backIconButton: {
-    padding: theme.spacing.sm,
-    marginRight: theme.spacing.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   backIcon: {
     fontSize: 24,
-    color: theme.colors.primary,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
   },
   headerContent: {
     flex: 1,
   },
   studentName: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
     color: theme.colors.text.primary,
-    marginBottom: 4,
+    letterSpacing: -0.5,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
+    borderRadius: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-
-  // Info Bar
   infoBar: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md,
+    backgroundColor: '#F9FAFB',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: '#F3F4F6',
   },
   infoItem: {
     flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#9CA3AF',
     marginBottom: 4,
+    letterSpacing: 1,
   },
   infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: theme.colors.text.primary,
   },
-  divider: {
+  verticalDivider: {
     width: 1,
-    backgroundColor: theme.colors.border,
-    marginHorizontal: theme.spacing.md,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 16,
   },
-
-  // Map
   mapContainer: {
     flex: 1,
-    minHeight: 300,
+    position: 'relative',
+  },
+  liveIndicator: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.error,
+    marginRight: 8,
+  },
+  liveText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.text.primary,
+    letterSpacing: 1,
   },
 });

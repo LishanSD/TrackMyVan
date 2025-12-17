@@ -172,7 +172,6 @@ export default function TripsScreen() {
         const data = await fetchStudentsByIds(childIds);
         setStudentsByTrip((prev) => ({ ...prev, [trip.id]: data }));
       } catch (e) {
-        // noop; fallback messaging in UI
       } finally {
         setStudentsLoading((prev) => ({ ...prev, [trip.id]: false }));
       }
@@ -223,6 +222,9 @@ export default function TripsScreen() {
     if (error) {
       return (
         <View style={styles.emptyState}>
+          <View style={styles.errorIconContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+          </View>
           <Text style={styles.emptyText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => loadTrips()}>
             <Text style={styles.retryText}>Try Again</Text>
@@ -233,6 +235,9 @@ export default function TripsScreen() {
 
     return (
       <View style={styles.emptyState}>
+        <View style={styles.emptyIconContainer}>
+          <Text style={styles.emptyIcon}>🚐</Text>
+        </View>
         <Text style={styles.emptyText}>No past trips found yet.</Text>
         <Text style={styles.helperText}>Completed trips will appear here.</Text>
       </View>
@@ -247,13 +252,16 @@ export default function TripsScreen() {
       </View>
 
       <View style={styles.searchContainer}>
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search by date, type, status, notes..."
-          placeholderTextColor={theme.colors.text.light}
-          style={styles.searchInput}
-        />
+        <View style={styles.searchWrapper}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search date, type, status..."
+            placeholderTextColor={theme.colors.text.light}
+            style={styles.searchInput}
+          />
+        </View>
       </View>
 
       <FlatList
@@ -265,7 +273,11 @@ export default function TripsScreen() {
           filteredTrips.length === 0 ? styles.listEmptyContainer : styles.listContainer
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => loadTrips(true)} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadTrips(true)}
+            colors={[theme.colors.primary]}
+          />
         }
         initialNumToRender={8}
         windowSize={10}
@@ -301,13 +313,18 @@ const TripCard = React.memo(
     };
 
     return (
-      <TouchableOpacity activeOpacity={0.85} onPress={onToggle}>
-        <View style={[styles.card, isExpanded && styles.cardExpanded]}>
+      <TouchableOpacity activeOpacity={0.9} onPress={onToggle} style={styles.cardContainer}>
+        <View
+          style={[
+            styles.card,
+            isExpanded && styles.cardExpanded,
+            { borderLeftColor: statusColor(trip.status) },
+          ]}>
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.dateText}>{formatDate(trip.date)}</Text>
               <Text style={styles.subText}>
-                {trip.type === 'MORNING' ? 'Morning trip' : 'Afternoon trip'}
+                {trip.type === 'MORNING' ? '🌅 Morning trip' : '🌇 Afternoon trip'}
               </Text>
             </View>
             <View style={[styles.badge, { backgroundColor: statusColor(trip.status) }]}>
@@ -315,20 +332,20 @@ const TripCard = React.memo(
             </View>
           </View>
 
-          <View style={styles.rowCompact}>
-            <View style={styles.rowItem}>
+          <View style={styles.statsGrid}>
+            <View style={styles.gridItem}>
               <Text style={styles.label}>Start</Text>
               <Text style={styles.value}>{formatTime(trip.startTime)}</Text>
             </View>
-            <View style={styles.rowItem}>
+            <View style={styles.gridItem}>
               <Text style={styles.label}>End</Text>
               <Text style={styles.value}>{formatTime(trip.endTime)}</Text>
             </View>
-            <View style={styles.rowItem}>
+            <View style={styles.gridItem}>
               <Text style={styles.label}>Duration</Text>
               <Text style={styles.value}>{formatDuration(trip.startTime, trip.endTime)}</Text>
             </View>
-            <View style={styles.rowItem}>
+            <View style={styles.gridItem}>
               <Text style={styles.label}>Students</Text>
               <Text style={styles.value}>{childrenCount}</Text>
             </View>
@@ -336,30 +353,49 @@ const TripCard = React.memo(
 
           {isExpanded && (
             <View style={styles.details}>
-              <Text style={[styles.notesLabel, { marginTop: 8 }]}>Students</Text>
-              {studentsAreLoading ? (
-                <Text style={styles.helperText}>Loading students...</Text>
-              ) : studentList && studentList.length > 0 ? (
-                studentList.map((student) => {
-                  const status = getStudentStatus(student.id);
-                  return (
-                    <View key={student.id} style={styles.studentRow}>
-                      <Text style={styles.studentName}>• {student.name ?? 'Unnamed'}</Text>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: getStudentStatusColor(status) },
-                        ]}>
-                        <Text style={styles.statusText}>{formatStudentStatus(status)}</Text>
+              <View style={styles.detailsHeader}>
+                <Text style={styles.notesLabel}>Detailed Passenger Log</Text>
+                {studentsAreLoading && (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                )}
+              </View>
+
+              {studentList && studentList.length > 0
+                ? studentList.map((student) => {
+                    const status = getStudentStatus(student.id);
+                    return (
+                      <View key={student.id} style={styles.studentRow}>
+                        <View style={styles.studentInfo}>
+                          <View
+                            style={[
+                              styles.statusDot,
+                              { backgroundColor: getStudentStatusColor(status) },
+                            ]}
+                          />
+                          <Text style={styles.studentName} numberOfLines={1}>
+                            {student.name ?? 'Unnamed'}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            { backgroundColor: getStudentStatusColor(status) + '15' },
+                          ]}>
+                          <Text
+                            style={[styles.statusText, { color: getStudentStatusColor(status) }]}>
+                            {formatStudentStatus(status)}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  );
-                })
-              ) : (
-                <Text style={styles.helperText}>
-                  {childrenCount === 0 ? 'No students assigned' : 'Students not available'}
-                </Text>
-              )}
+                    );
+                  })
+                : !studentsAreLoading && (
+                    <Text style={styles.helperText}>
+                      {childrenCount === 0
+                        ? 'No students assigned to this route'
+                        : 'Passenger data currently unavailable'}
+                    </Text>
+                  )}
             </View>
           )}
         </View>
@@ -376,155 +412,246 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   header: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 32,
+    fontWeight: '800',
     color: theme.colors.text.primary,
+    letterSpacing: -0.5,
   },
   subtitle: {
     marginTop: 4,
     color: theme.colors.text.secondary,
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
   },
   searchContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  searchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  searchIcon: {
+    fontSize: 16,
+    marginRight: 8,
   },
   searchInput: {
-    backgroundColor: '#fff',
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 10,
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
     color: theme.colors.text.primary,
+    fontWeight: '500',
   },
   listContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   listEmptyContainer: {
     flexGrow: 1,
-    paddingHorizontal: theme.spacing.lg,
     justifyContent: 'center',
+  },
+  cardContainer: {
+    marginBottom: 16,
   },
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: '#F3F4F6',
+    borderLeftWidth: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardExpanded: {
-    borderColor: theme.colors.primary,
+    borderColor: theme.colors.primary + '30',
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
   dateText: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: theme.colors.text.primary,
+    marginBottom: 4,
   },
   subText: {
     color: theme.colors.text.secondary,
-    marginTop: 1,
+    fontSize: 13,
+    fontWeight: '600',
   },
   badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   badgeText: {
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: '800',
+    fontSize: 10,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  rowCompact: {
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing.sm,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 12,
   },
-  rowItem: {
-    flexGrow: 1,
-    minWidth: '45%',
-    paddingVertical: 6,
+  gridItem: {
+    width: '50%',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
   label: {
     color: theme.colors.text.secondary,
-    fontSize: 14,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   value: {
     color: theme.colors.text.primary,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
   details: {
-    marginTop: theme.spacing.sm,
+    marginTop: 20,
+    paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    paddingTop: theme.spacing.sm,
+    borderTopColor: '#F3F4F6',
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   notesLabel: {
-    fontWeight: '700',
-    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '800',
     color: theme.colors.text.primary,
+    letterSpacing: -0.2,
   },
   studentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingVertical: 6,
+    marginBottom: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F9FAFB',
+  },
+  studentInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 10,
   },
   studentName: {
     color: theme.colors.text.primary,
-    fontSize: 15,
-    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
-    marginLeft: 8,
+    borderRadius: 8,
+    marginLeft: 12,
   },
   statusText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing.xl,
+    paddingHorizontal: 40,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyIcon: {
+    fontSize: 32,
+  },
+  errorIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.colors.error + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  errorIcon: {
+    fontSize: 32,
   },
   emptyText: {
     color: theme.colors.text.primary,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
     textAlign: 'center',
+    marginBottom: 8,
   },
   helperText: {
-    marginTop: 6,
     color: theme.colors.text.secondary,
     textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
   },
   retryButton: {
-    marginTop: theme.spacing.md,
+    marginTop: 24,
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   retryText: {
     color: '#fff',
     fontWeight: '700',
+    fontSize: 16,
   },
 });

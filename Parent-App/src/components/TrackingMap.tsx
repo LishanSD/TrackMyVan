@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import { Ionicons } from '@expo/vector-icons';
 import { Location, DriverLocation } from '../types/types';
 import { theme } from '../theme/theme';
 
@@ -23,13 +24,11 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
 }) => {
   const mapRef = useRef<MapView>(null);
 
-  // Auto-fit map to show all markers
   useEffect(() => {
     if (!mapRef.current || loading) return;
 
     const coordinates: { latitude: number; longitude: number }[] = [homeLocation, schoolLocation];
 
-    // Add driver location if available
     if (driverLocation) {
       coordinates.push({
         latitude: driverLocation.lat,
@@ -37,7 +36,6 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
       });
     }
 
-    // Fit map to show all markers with padding
     setTimeout(() => {
       mapRef.current?.fitToCoordinates(coordinates, {
         edgePadding: { top: 100, right: 50, bottom: 50, left: 50 },
@@ -46,7 +44,6 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
     }, 500);
   }, [homeLocation, schoolLocation, driverLocation, loading]);
 
-  // Calculate initial region based on home and school locations
   const getInitialRegion = (): Region => {
     const midLat = (homeLocation.latitude + schoolLocation.latitude) / 2;
     const midLng = (homeLocation.longitude + schoolLocation.longitude) / 2;
@@ -74,7 +71,7 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+        <Ionicons name="alert-circle" size={48} color={theme.colors.error} />
         <Text style={styles.errorText}>{error}</Text>
       </View>
     );
@@ -96,10 +93,11 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
           coordinate={homeLocation}
           title="Home"
           description={`${studentName}'s home`}
-          pinColor={theme.colors.primary}>
+          anchor={{ x: 0.5, y: 1 }}
+          calloutAnchor={{ x: 0.5, y: 0 }}>
           <View style={styles.markerContainer}>
-            <View style={[styles.marker, { backgroundColor: theme.colors.primary }]}>
-              <Text style={styles.markerIcon}>🏠</Text>
+            <View style={[styles.markerBubble, { backgroundColor: theme.colors.primary }]}>
+              <Ionicons name="home" size={16} color="#FFFFFF" />
             </View>
             <View style={[styles.markerArrow, { borderTopColor: theme.colors.primary }]} />
           </View>
@@ -110,61 +108,67 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
           coordinate={schoolLocation}
           title="School"
           description={`${studentName}'s school`}
-          pinColor={theme.colors.secondary}>
+          anchor={{ x: 0.5, y: 1 }}
+          calloutAnchor={{ x: 0.5, y: 0 }}>
           <View style={styles.markerContainer}>
-            <View style={[styles.marker, { backgroundColor: theme.colors.secondary }]}>
-              <Text style={styles.markerIcon}>🏫</Text>
+            <View style={[styles.markerBubble, { backgroundColor: theme.colors.secondary }]}>
+              <Ionicons name="school" size={16} color="#FFFFFF" />
             </View>
             <View style={[styles.markerArrow, { borderTopColor: theme.colors.secondary }]} />
           </View>
         </Marker>
 
-        {/* Driver/Van Location Marker (if available) */}
+        {/* Driver/Van Location Marker */}
         {driverLocation && (
           <Marker
             coordinate={{
               latitude: driverLocation.lat,
               longitude: driverLocation.lng,
             }}
-            title="Van Location"
-            description="Current driver location"
+            title="School Van"
+            description="Live Location"
             rotation={driverLocation.bearing}
             anchor={{ x: 0.5, y: 0.5 }}>
-            <View
-              style={[
-                styles.vanMarkerContainer,
-                { transform: [{ rotate: `${driverLocation.bearing}deg` }] },
-              ]}>
-              <View style={styles.vanMarker}>
-                <Text style={styles.vanIcon}>🚐</Text>
+            <View style={styles.vanMarkerContainer}>
+              <View style={styles.vanMarkerRing}>
+                <View style={styles.vanMarkerCore}>
+                  <Ionicons name="bus" size={18} color="#FFFFFF" />
+                </View>
               </View>
             </View>
           </Marker>
         )}
       </MapView>
 
-      {/* Legend */}
+      {/* Floating Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
+          <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]}>
+            <Ionicons name="home" size={10} color="#FFFFFF" />
+          </View>
           <Text style={styles.legendText}>Home</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: theme.colors.secondary }]} />
+          <View style={[styles.legendDot, { backgroundColor: theme.colors.secondary }]}>
+            <Ionicons name="school" size={10} color="#FFFFFF" />
+          </View>
           <Text style={styles.legendText}>School</Text>
         </View>
         {driverLocation && (
           <View style={styles.legendItem}>
-            <Text style={styles.vanIcon}>🚐</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]}>
+              <Ionicons name="bus" size={10} color="#FFFFFF" />
+            </View>
             <Text style={styles.legendText}>Van</Text>
           </View>
         )}
       </View>
 
-      {/* Driver Location Status */}
+      {/* Status Banner */}
       {!driverLocation && (
         <View style={styles.statusBanner}>
-          <Text style={styles.statusText}>⚠️ Driver location not available</Text>
+          <Ionicons name="cloud-offline-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.statusText}>Driver location unavailable</Text>
         </View>
       )}
     </View>
@@ -174,58 +178,61 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12, // Rounded corners for the map container
   },
   map: {
     flex: 1,
   },
   loadingContainer: {
-    flex: 1,
+    height: 300,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
   },
   loadingText: {
-    marginTop: theme.spacing.md,
-    fontSize: 16,
-    color: theme.colors.text.secondary,
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   errorContainer: {
-    flex: 1,
+    height: 300,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.xl,
-  },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: theme.spacing.md,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 24,
   },
   errorText: {
-    fontSize: 16,
+    marginTop: 12,
+    fontSize: 14,
     color: theme.colors.error,
     textAlign: 'center',
   },
 
-  // Custom Marker Styles
+  // Map Markers
   markerContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
   },
-  marker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  markerBubble: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
     elevation: 5,
-  },
-  markerIcon: {
-    fontSize: 18,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   markerArrow: {
     width: 0,
@@ -234,65 +241,81 @@ const styles = StyleSheet.create({
     borderStyle: 'solid',
     borderLeftWidth: 6,
     borderRightWidth: 6,
-    borderTopWidth: 10,
+    borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    marginTop: -1,
+    marginTop: -2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
   },
 
-  // Van Marker Styles
+  // Van Marker
   vanMarkerContainer: {
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  vanMarker: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
+  vanMarkerRing: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(245, 158, 11, 0.3)', // Semi-transparent ring
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: theme.colors.warning,
+  },
+  vanMarkerCore: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F59E0B', // Warning/Orange color
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 8,
-  },
-  vanIcon: {
-    fontSize: 20,
+    elevation: 6,
   },
 
-  // Legend Styles
+  // Legend
   legend: {
     position: 'absolute',
     top: 16,
     right: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.sm,
+    borderRadius: 12,
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    gap: 8,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 4,
   },
   legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 8,
   },
   legendText: {
     fontSize: 12,
-    color: theme.colors.text.primary,
-    fontWeight: '500',
+    color: '#374151',
+    fontWeight: '600',
   },
 
   // Status Banner
@@ -301,19 +324,23 @@ const styles = StyleSheet.create({
     bottom: 16,
     left: 16,
     right: 16,
-    backgroundColor: 'rgba(245, 158, 11, 0.95)',
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 5,
   },
   statusText: {
     fontSize: 14,
-    color: '#ffffff',
-    textAlign: 'center',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

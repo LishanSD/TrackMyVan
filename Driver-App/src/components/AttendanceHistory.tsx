@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ChildStatus, PickupStatus } from '../types/types';
 import { theme } from '../theme/theme';
 
@@ -22,8 +23,6 @@ const getCurrentStatusColor = (status: ChildStatus['currentStatus']) => {
   }
 };
 
-const formatCurrentStatus = (status: ChildStatus['currentStatus']) => status.replace(/_/g, ' ');
-
 const getPickupStatusColor = (status: PickupStatus['status']) => {
   switch (status) {
     case 'COMPLETED':
@@ -33,7 +32,7 @@ const getPickupStatusColor = (status: PickupStatus['status']) => {
     case 'SKIPPED':
       return theme.colors.error;
     default:
-      return theme.colors.warning;
+      return '#F59E0B'; // Warning color
   }
 };
 
@@ -60,216 +59,208 @@ const formatDateLabel = (dateString?: string) => {
 const AttendanceHistory: React.FC<Props> = ({ attendanceHistory, loading, error }) => {
   if (loading) {
     return (
-      <View style={styles.attendanceLoading}>
+      <View style={styles.centerContainer}>
         <ActivityIndicator color={theme.colors.primary} />
-        <Text style={styles.attendanceSubtext}>Loading recent records...</Text>
+        <Text style={styles.subtext}>Loading recent records...</Text>
       </View>
     );
   }
 
   if (error) {
-    return <Text style={styles.attendanceError}>{error}</Text>;
+    return (
+      <View style={styles.centerContainer}>
+        <Ionicons name="alert-circle-outline" size={24} color={theme.colors.error} />
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
   }
 
   if (attendanceHistory.length === 0) {
-    return <Text style={styles.attendanceSubtext}>No attendance records yet.</Text>;
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.subtext}>No attendance records available.</Text>
+      </View>
+    );
   }
 
   return (
-    <>
+    <View style={styles.container}>
       {attendanceHistory.map((record) => {
         const currentStatus = record.currentStatus ?? 'AT_HOME';
+
+        // Clean status text for display
+        const displayStatus = currentStatus.replace(/_/g, ' ').toLowerCase();
+
         return (
-          <View key={record.date} style={styles.attendanceCard}>
-            <View style={styles.attendanceHeader}>
-              <Text style={styles.attendanceDate}>{formatDateLabel(record.date)}</Text>
+          <View key={record.date} style={styles.card}>
+            {/* Card Header */}
+            <View style={styles.cardHeader}>
+              <View style={styles.dateContainer}>
+                <Ionicons name="calendar-outline" size={16} color="#4B5563" />
+                <Text style={styles.dateText}>{formatDateLabel(record.date)}</Text>
+              </View>
               <View
                 style={[
-                  styles.attendanceChip,
-                  {
-                    backgroundColor: getCurrentStatusColor(currentStatus) + '20',
-                  },
+                  styles.statusBadge,
+                  { backgroundColor: getCurrentStatusColor(currentStatus) + '15' },
                 ]}>
-                <Text
-                  style={[
-                    styles.attendanceChipText,
-                    { color: getCurrentStatusColor(currentStatus) },
-                  ]}>
-                  {formatCurrentStatus(currentStatus)}
+                <Text style={[styles.statusText, { color: getCurrentStatusColor(currentStatus) }]}>
+                  {displayStatus}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.attendanceRow}>
-              <View>
-                <Text style={styles.attendanceLabel}>Morning pickup</Text>
-                <Text style={styles.attendanceTime}>
-                  {formatTimestamp(record.morningPickup?.time)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.attendanceChip,
-                  {
-                    backgroundColor:
-                      getPickupStatusColor(record.morningPickup?.status ?? 'PENDING') + '20',
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.attendanceChipText,
-                    {
-                      color: getPickupStatusColor(record.morningPickup?.status ?? 'PENDING'),
-                    },
-                  ]}>
-                  {record.morningPickup?.status ?? 'PENDING'}
-                </Text>
-              </View>
-            </View>
+            <View style={styles.divider} />
 
-            <View style={styles.attendanceRow}>
-              <View>
-                <Text style={styles.attendanceLabel}>School drop-off</Text>
-                <Text style={styles.attendanceTime}>
-                  {formatTimestamp(record.schoolDropoff?.time)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.attendanceChip,
-                  {
-                    backgroundColor:
-                      getPickupStatusColor(record.schoolDropoff?.status ?? 'PENDING') + '20',
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.attendanceChipText,
-                    {
-                      color: getPickupStatusColor(record.schoolDropoff?.status ?? 'PENDING'),
-                    },
-                  ]}>
-                  {record.schoolDropoff?.status ?? 'PENDING'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.attendanceRow}>
-              <View>
-                <Text style={styles.attendanceLabel}>School pickup</Text>
-                <Text style={styles.attendanceTime}>
-                  {formatTimestamp(record.schoolPickup?.time)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.attendanceChip,
-                  {
-                    backgroundColor:
-                      getPickupStatusColor(record.schoolPickup?.status ?? 'PENDING') + '20',
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.attendanceChipText,
-                    {
-                      color: getPickupStatusColor(record.schoolPickup?.status ?? 'PENDING'),
-                    },
-                  ]}>
-                  {record.schoolPickup?.status ?? 'PENDING'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.attendanceRow}>
-              <View>
-                <Text style={styles.attendanceLabel}>Home drop-off</Text>
-                <Text style={styles.attendanceTime}>
-                  {formatTimestamp(record.homeDropoff?.time)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.attendanceChip,
-                  {
-                    backgroundColor:
-                      getPickupStatusColor(record.homeDropoff?.status ?? 'PENDING') + '20',
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.attendanceChipText,
-                    {
-                      color: getPickupStatusColor(record.homeDropoff?.status ?? 'PENDING'),
-                    },
-                  ]}>
-                  {record.homeDropoff?.status ?? 'PENDING'}
-                </Text>
-              </View>
+            {/* Timeline Events */}
+            <View style={styles.eventsContainer}>
+              <EventRow icon="sunny-outline" label="Morning Pickup" data={record.morningPickup} />
+              <EventRow icon="school-outline" label="School Drop-off" data={record.schoolDropoff} />
+              <EventRow icon="bus-outline" label="School Pickup" data={record.schoolPickup} />
+              <EventRow icon="home-outline" label="Home Drop-off" data={record.homeDropoff} />
             </View>
           </View>
         );
       })}
-    </>
+    </View>
+  );
+};
+
+// Helper Component for consistent rows
+const EventRow = ({ icon, label, data }: { icon: any; label: string; data: any }) => {
+  const status = data?.status ?? 'PENDING';
+  const displayStatus = status.replace(/_/g, ' ').toLowerCase();
+  const color = getPickupStatusColor(status);
+
+  return (
+    <View style={styles.eventRow}>
+      <View style={styles.eventLeft}>
+        <View style={styles.iconBox}>
+          <Ionicons name={icon} size={14} color="#6B7280" />
+        </View>
+        <View>
+          <Text style={styles.eventLabel}>{label}</Text>
+          <Text style={styles.eventTime}>{formatTimestamp(data?.time)}</Text>
+        </View>
+      </View>
+
+      <View style={[styles.miniBadge, { backgroundColor: color + '15' }]}>
+        <Text style={[styles.miniBadgeText, { color: color }]}>{displayStatus}</Text>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  attendanceLoading: {
-    flexDirection: 'row',
+  container: {
+    gap: 12,
+  },
+  centerContainer: {
+    padding: 20,
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    justifyContent: 'center',
+    gap: 8,
   },
-  attendanceSubtext: {
+  emptyContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  subtext: {
     fontSize: 13,
-    color: theme.colors.text.secondary,
+    color: '#6B7280',
   },
-  attendanceError: {
+  errorText: {
     fontSize: 13,
     color: theme.colors.error,
   },
-  attendanceCard: {
-    backgroundColor: theme.colors.surface,
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  attendanceHeader: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 12,
   },
-  attendanceDate: {
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dateText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    fontWeight: '700',
+    color: '#111827',
   },
-  attendanceRow: {
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 12,
+  },
+  eventsContainer: {
+    gap: 12,
+  },
+  eventRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
   },
-  attendanceLabel: {
+  eventLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventLabel: {
     fontSize: 13,
-    color: theme.colors.text.secondary,
+    color: '#374151',
     fontWeight: '500',
   },
-  attendanceTime: {
-    fontSize: 12,
-    color: theme.colors.text.light,
+  eventTime: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 1,
   },
-  attendanceChip: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
+  miniBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  attendanceChipText: {
-    fontSize: 12,
-    fontWeight: '600',
+  miniBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
 });
 

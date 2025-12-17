@@ -7,13 +7,12 @@ import {
   StyleSheet,
   Alert,
   Platform,
-  // TouchableOpacity removed
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-// Firestore Imports
 import {
   doc,
   setDoc,
@@ -24,11 +23,8 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
-  FieldValue,
 } from 'firebase/firestore';
-// Realtime DB Imports
 import { ref, set } from 'firebase/database';
-// Import database (RTDB) and firestore (FS) from config
 import { firestore, database } from '../../src/config/firebaseConfig';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTrip } from '../../src/context/TripContext';
@@ -36,18 +32,10 @@ import { calculateOptimalRoute } from '../../src/services/routeOptimizationServi
 import { theme } from '../../src/theme/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
-import {
-  TripType,
-  ChildActionEvent,
-  LocationRecord,
-  StudentStatus,
-  Student,
-} from '../../src/types/types';
+import { TripType, ChildActionEvent, StudentStatus, Student } from '../../src/types/types';
 
-// --- CONFIGURATION ---
 const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
 
-// --- BACKGROUND LOCATION TASK DEFINITION ---
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('Location Task Error:', error.message);
@@ -79,7 +67,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   }
 });
 
-// --- STUDENT LIST COMPONENT ---
 interface StudentListProps {
   students: Student[];
   onUpdateStatus: (studentId: string, action: ChildActionEvent) => Promise<void>;
@@ -87,7 +74,6 @@ interface StudentListProps {
 }
 
 const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tripType }) => {
-  // State to track which specific student button is being pressed
   const [pressedStudentId, setPressedStudentId] = useState<string | null>(null);
   const [pressedNotAttendedId, setPressedNotAttendedId] = useState<string | null>(null);
 
@@ -148,23 +134,25 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
     const { label, action, style } = getActionDetails(student);
     const isPressed = pressedStudentId === student.id;
 
+    const displayStatus = (student.currentVanStatus ?? 'NOT_PICKED_UP')
+      .replace(/_/g, ' ')
+      .toLowerCase();
+
     return (
       <View key={student.id} style={styles.studentCard}>
         <View style={styles.studentInfo}>
           <Text style={styles.studentName}>{student.name}</Text>
           <Text style={styles.studentStatus}>
-            Status: {(student.currentVanStatus ?? 'NOT_PICKED_UP').replace(/_/g, ' ')}
+            Status: <Text style={styles.statusValue}>{displayStatus}</Text>
           </Text>
         </View>
         <View style={styles.actionButtonsColumn}>
           {action ? (
-            // CONVERTED: TouchableWithoutFeedback
             <TouchableWithoutFeedback
               onPress={() => action && onUpdateStatus(student.id, action)}
               onPressIn={() => setPressedStudentId(student.id)}
               onPressOut={() => setPressedStudentId(null)}>
-              {/* Style applied to the View, NOT the Touchable */}
-              <View style={[styles.statusButton, style, isPressed && { opacity: 0.5 }]}>
+              <View style={[styles.statusButton, style, isPressed && styles.pressedOpacity]}>
                 <Text style={styles.statusButtonText}>{label}</Text>
               </View>
             </TouchableWithoutFeedback>
@@ -183,7 +171,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
                 style={[
                   styles.statusButton,
                   styles.notAttendedButton,
-                  pressedNotAttendedId === student.id && { opacity: 0.5 },
+                  pressedNotAttendedId === student.id && styles.pressedOpacity,
                 ]}>
                 <Text style={styles.statusButtonText}>Not Attended</Text>
               </View>
@@ -197,9 +185,11 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
   return (
     <View style={styles.listContainer}>
       {activeStudents.length > 0 && (
-        <Text style={styles.listTitle}>Active Students ({activeStudents.length})</Text>
+        <>
+          <Text style={styles.listTitle}>Active Students ({activeStudents.length})</Text>
+          {activeStudents.map(renderStudent)}
+        </>
       )}
-      {activeStudents.map(renderStudent)}
 
       {completedStudents.length > 0 && (
         <>
@@ -211,16 +201,14 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
   );
 };
 
-// --- DASHBOARD SCREEN ---
 export default function DashboardScreen() {
-  const { user } = useAuth();
-  const { setTripData, endTrip: endTripContext, isActive, tripState } = useTrip();
+  const { user, userProfile } = useAuth();
+  const { setTripData, endTrip: endTripContext } = useTrip();
   const router = useRouter();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
 
-  // Press states for visual feedback
   const [isPressingStartEnd, setIsPressingStartEnd] = useState(false);
   const [pressedTripType, setPressedTripType] = useState<TripType | null>(null);
 
@@ -237,7 +225,6 @@ export default function DashboardScreen() {
       const storedTripType = (await AsyncStorage.getItem('currentTripType')) as TripType | null;
 
       if (isRegistered && storedTripId) {
-        // We have an active background task and a persisted trip ID → restore state
         setCurrentTripId(storedTripId);
         if (storedTripType === 'MORNING' || storedTripType === 'AFTERNOON') {
           setTripType(storedTripType);
@@ -245,7 +232,6 @@ export default function DashboardScreen() {
         setIsTripActive(true);
         setTripStatusText(`Trip IN_PROGRESS: ${storedTripType ?? tripType}`);
       } else if (isRegistered && !storedTripId) {
-        // Orphaned background task with no trip ID → stop it and reset UI
         try {
           await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
         } catch (e) {
@@ -262,9 +248,7 @@ export default function DashboardScreen() {
     };
     checkTaskStatus();
 
-    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      // Logic for app state changes if needed
-    };
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {};
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => {
@@ -390,7 +374,6 @@ export default function DashboardScreen() {
     setIsCalculatingRoute(true);
 
     try {
-      // Fetch students
       const studentsQuery = query(
         collection(firestore, 'students'),
         where('driverId', '==', driverId),
@@ -414,20 +397,18 @@ export default function DashboardScreen() {
 
       setStudents(fetchedStudents);
 
-      // Calculate optimal route
       console.log('Calculating optimal route...');
       const today = new Date().toISOString().split('T')[0];
       const optimizedRoute = await calculateOptimalRoute(
         driverId,
         today,
         tripType,
-        undefined, // Let it use current location
-        true // Force recalculation
+        undefined,
+        true
       );
 
       console.log('Route calculated:', optimizedRoute.id);
 
-      // Create trip in Firestore
       const tripId = driverId + '_' + Date.now();
       const tripDocRef = doc(firestore, 'trips', tripId);
       const initialChildrenStatus = fetchedStudents.map((s) => ({
@@ -450,10 +431,8 @@ export default function DashboardScreen() {
       await AsyncStorage.setItem('currentTripId', tripId);
       await AsyncStorage.setItem('currentTripType', tripType);
 
-      // Save route to TripContext
       setTripData(tripId, tripType, optimizedRoute);
 
-      // Start background location tracking
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.BestForNavigation,
         distanceInterval: 10,
@@ -482,21 +461,17 @@ export default function DashboardScreen() {
   const handleEndTrip = async () => {
     if (!driverId || !currentTripId) return;
     try {
-      // Stop background location tracking
       if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
       }
 
-      // Update trip in Firestore
       await updateDoc(doc(firestore, 'trips', currentTripId), {
         status: 'COMPLETED',
         endTime: serverTimestamp(),
       });
 
-      // End trip in context (this will stop location tracking and broadcast to map)
       endTripContext();
 
-      // Clean up local state
       await AsyncStorage.removeItem('currentTripId');
       setCurrentTripId(null);
       setStudents([]);
@@ -507,7 +482,6 @@ export default function DashboardScreen() {
         {
           text: 'OK',
           onPress: () => {
-            // Navigate to Map tab so the driver immediately sees the completion overlay
             router.push('/(tabs)/map');
           },
         },
@@ -556,28 +530,34 @@ export default function DashboardScreen() {
 
   const buttonStyle = {
     ...(isTripActive ? styles.actionButtonEnd : styles.actionButtonStart),
-    opacity: isPressingStartEnd || isCalculatingRoute ? 0.8 : 1.0,
+    opacity: isPressingStartEnd || isCalculatingRoute ? 0.9 : 1.0,
+    transform: [{ scale: isPressingStartEnd ? 0.98 : 1 }],
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.container}>
-          <Text style={styles.dashboardTitle}>Dashboard</Text>
+          <View style={styles.dashboardHeader}>
+            <View style={styles.dashboardTitleContainer}>
+              <Text style={styles.dashboardTitle}>Dashboard</Text>
+            </View>
+            {userProfile?.profilePic && (
+              <Image source={{ uri: userProfile.profilePic }} style={styles.dashboardProfilePic} />
+            )}
+          </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
-            <Text style={[styles.cardText, { color: tripStatusColor, fontWeight: 'bold' }]}>
-              {tripStatusText}
+            <Text style={[styles.cardText, { color: tripStatusColor }]}>
+              {tripStatusText.replace(/_/g, ' ').toLowerCase()}
             </Text>
           </View>
 
-          {/* Trip Type Selector - CONVERTED to TouchableWithoutFeedback */}
           {!isTripActive && (
             <View style={styles.tripTypeContainer}>
               <Text style={styles.tripTypeLabel}>Select Trip:</Text>
               <View style={styles.tripTypeButtons}>
-                {/* Morning Button */}
                 <TouchableWithoutFeedback
                   onPress={() => setTripType('MORNING')}
                   onPressIn={() => setPressedTripType('MORNING')}
@@ -586,7 +566,7 @@ export default function DashboardScreen() {
                     style={[
                       styles.tripTypeButton,
                       tripType === 'MORNING' && styles.tripTypeActive,
-                      pressedTripType === 'MORNING' && { opacity: 0.5 },
+                      pressedTripType === 'MORNING' && styles.pressedOpacity,
                     ]}>
                     <Text
                       style={[
@@ -597,7 +577,6 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                 </TouchableWithoutFeedback>
-                {/* Afternoon Button - Note: No whitespace between Touchables */}
                 <TouchableWithoutFeedback
                   onPress={() => setTripType('AFTERNOON')}
                   onPressIn={() => setPressedTripType('AFTERNOON')}
@@ -606,7 +585,7 @@ export default function DashboardScreen() {
                     style={[
                       styles.tripTypeButton,
                       tripType === 'AFTERNOON' && styles.tripTypeActive,
-                      pressedTripType === 'AFTERNOON' && { opacity: 0.5 },
+                      pressedTripType === 'AFTERNOON' && styles.pressedOpacity,
                     ]}>
                     <Text
                       style={[
@@ -621,7 +600,6 @@ export default function DashboardScreen() {
             </View>
           )}
 
-          {/* Quick Actions - Already converted */}
           <TouchableWithoutFeedback
             onPress={actionHandler}
             onPressIn={() => setIsPressingStartEnd(true)}
@@ -645,146 +623,223 @@ export default function DashboardScreen() {
   );
 }
 
-// --- STYLES ---
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: theme.colors.background },
-  scrollView: { flex: 1 },
-  container: { padding: theme.spacing.lg },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  container: {
+    padding: 20,
+  },
+  dashboardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dashboardTitleContainer: {
+    flex: 1,
+  },
   dashboardTitle: {
-    marginBottom: theme.spacing.md,
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  dashboardProfilePic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   card: {
-    marginBottom: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: { elevation: 1 },
-    }),
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   cardTitle: {
-    marginBottom: theme.spacing.xs,
-    fontSize: 18,
+    marginBottom: 8,
+    fontSize: 12,
     fontWeight: '600',
-    color: theme.colors.text.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#9CA3AF',
   },
-  cardText: { fontSize: 14, color: theme.colors.text.secondary },
+  cardText: {
+    fontSize: 20,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
   tripTypeContainer: {
-    marginBottom: theme.spacing.md,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    marginBottom: 24,
   },
   tripTypeLabel: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
   },
-  tripTypeButtons: { flexDirection: 'row', justifyContent: 'space-around' },
+  tripTypeButtons: {
+    flexDirection: 'row',
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 4,
+  },
   tripTypeButton: {
     flex: 1,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    marginHorizontal: theme.spacing.xs,
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    justifyContent: 'center',
   },
-  tripTypeActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  tripTypeButtonText: { fontSize: 16, fontWeight: '600', color: theme.colors.text.primary },
-  tripTypeActiveText: { color: theme.colors.surface },
+  tripTypeActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tripTypeButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  tripTypeActiveText: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+  },
   actionButtonStart: {
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: 16,
     backgroundColor: theme.colors.primary,
-    padding: theme.spacing.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: { elevation: 3 },
-    }),
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    marginBottom: 30,
   },
   actionButtonEnd: {
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.error,
-    padding: theme.spacing.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-      },
-      android: { elevation: 3 },
-    }),
+    borderRadius: 16,
+    backgroundColor: '#EF4444',
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    marginBottom: 30,
   },
   actionButtonTitle: {
-    marginBottom: theme.spacing.xs,
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.surface,
-  },
-  actionButtonText: { fontSize: 14, color: '#fee2e2' },
-  listContainer: { marginTop: theme.spacing.lg },
-  listTitle: {
+    marginBottom: 4,
     fontSize: 20,
     fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.sm,
-    marginTop: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    paddingBottom: theme.spacing.xs,
+    color: '#FFFFFF',
+  },
+  actionButtonText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+  listContainer: {
+    marginTop: 8,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 12,
+    marginTop: 8,
   },
   studentCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    borderLeftWidth: 5,
-    borderLeftColor: theme.colors.primary,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 0.5 },
-        shadowOpacity: 0.05,
-        shadowRadius: 1,
-      },
-      android: { elevation: 1 },
-    }),
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  studentInfo: { flex: 1 },
-  studentName: { fontSize: 16, fontWeight: '600', color: theme.colors.text.primary },
-  studentStatus: { fontSize: 12, color: theme.colors.text.secondary, marginTop: 2 },
-  actionButtonsColumn: { alignItems: 'flex-end' },
+  studentInfo: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  studentName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  studentStatus: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  statusValue: {
+    textTransform: 'capitalize',
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  actionButtonsColumn: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
   statusButton: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    minWidth: 90,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    minWidth: 100,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  pickupButton: { backgroundColor: theme.colors.secondary },
-  dropoffButton: { backgroundColor: theme.colors.warning },
-  notAttendedButton: { backgroundColor: theme.colors.error, marginTop: theme.spacing.xs },
-  completeButton: { backgroundColor: theme.colors.border },
-  statusButtonText: { color: theme.colors.surface, fontWeight: 'bold', fontSize: 12 },
+  pickupButton: {
+    backgroundColor: theme.colors.secondary,
+  },
+  dropoffButton: {
+    backgroundColor: '#F59E0B',
+  },
+  notAttendedButton: {
+    backgroundColor: '#EF4444', // Bolder Red as requested
+  },
+  completeButton: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  statusButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  pressedOpacity: {
+    opacity: 0.6,
+  },
 });

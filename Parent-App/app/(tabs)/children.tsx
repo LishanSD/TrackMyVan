@@ -9,23 +9,17 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../src/context/AuthContext';
 import { firestore } from '../../src/config/firebaseConfig';
-import {
-  collection,
-  addDoc,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  getDoc,
-  getDocs,
-} from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
 import { ChildStatus, PickupStatus } from '../../src/types/types';
+
+const { width } = Dimensions.get('window');
 
 interface Location {
   latitude: number;
@@ -58,26 +52,22 @@ export default function ChildrenScreen() {
   const [driverFound, setDriverFound] = useState<any>(null);
   const [searchingDriver, setSearchingDriver] = useState(false);
 
-  // Form fields
   const [childName, setChildName] = useState('');
   const [childAge, setChildAge] = useState('');
   const [childGrade, setChildGrade] = useState('');
   const [homeLocation, setHomeLocation] = useState<Location | null>(null);
   const [schoolLocation, setSchoolLocation] = useState<Location | null>(null);
 
-  // Map modal state
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [selectingLocation, setSelectingLocation] = useState<LocationType>(null);
   const [tempMarker, setTempMarker] = useState<Location | null>(null);
 
-  // Detail view modal
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<ChildStatus[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
-  // Default map region (Sri Lanka - Colombo)
   const defaultRegion = {
     latitude: 6.9271,
     longitude: 79.8612,
@@ -87,9 +77,7 @@ export default function ChildrenScreen() {
 
   useEffect(() => {
     if (!user) return;
-
     const q = query(collection(firestore, 'students'), where('parentId', '==', user.uid));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const childrenData: Child[] = [];
       snapshot.forEach((doc) => {
@@ -98,7 +86,6 @@ export default function ChildrenScreen() {
       setChildren(childrenData);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [user]);
 
@@ -107,19 +94,16 @@ export default function ChildrenScreen() {
       Alert.alert('Error', 'Please enter driver email');
       return;
     }
-
     setSearchingDriver(true);
     try {
       const driversRef = collection(firestore, 'drivers');
       const q = query(driversRef, where('email', '==', searchDriverEmail.trim()));
-
       const snapshot = await new Promise<any>((resolve) => {
         const unsubscribe = onSnapshot(q, (snap) => {
           unsubscribe();
           resolve(snap);
         });
       });
-
       if (snapshot.empty) {
         Alert.alert('Not Found', 'No driver found with this email');
         setDriverFound(null);
@@ -146,13 +130,8 @@ export default function ChildrenScreen() {
       Alert.alert('Error', 'Please select a location on the map');
       return;
     }
-
-    if (selectingLocation === 'home') {
-      setHomeLocation(tempMarker);
-    } else if (selectingLocation === 'school') {
-      setSchoolLocation(tempMarker);
-    }
-
+    if (selectingLocation === 'home') setHomeLocation(tempMarker);
+    else if (selectingLocation === 'school') setSchoolLocation(tempMarker);
     setMapModalVisible(false);
     setTempMarker(null);
   };
@@ -167,17 +146,14 @@ export default function ChildrenScreen() {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
-
     if (!driverFound) {
       Alert.alert('Error', 'Please search and select a driver first');
       return;
     }
-
     if (!homeLocation || !schoolLocation) {
       Alert.alert('Error', 'Please select both home and school locations');
       return;
     }
-
     try {
       await addDoc(collection(firestore, 'students'), {
         name: childName.trim(),
@@ -196,7 +172,6 @@ export default function ChildrenScreen() {
         status: 'pending',
         createdAt: new Date().toISOString(),
       });
-
       Alert.alert('Success', 'Child added successfully. Waiting for driver approval.');
       resetForm();
       setModalVisible(false);
@@ -256,7 +231,6 @@ export default function ChildrenScreen() {
       typeof value === 'number'
         ? new Date(value)
         : new Date(value.seconds * 1000 + value.nanoseconds / 1_000_000);
-
     return isNaN(date.getTime())
       ? '—'
       : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -273,17 +247,12 @@ export default function ChildrenScreen() {
   useEffect(() => {
     if (!detailModalVisible || !selectedChild) return;
     let isMounted = true;
-
     const fetchAttendance = async () => {
       setAttendanceLoading(true);
-      setAttendanceError(null);
-
       try {
         const datesRef = collection(firestore, 'childStatus', selectedChild.id, 'dates');
         const snapshot = await getDocs(datesRef);
-
         if (!isMounted) return;
-
         const records: ChildStatus[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
@@ -293,7 +262,6 @@ export default function ChildrenScreen() {
             ...data,
           } as ChildStatus);
         });
-
         records.sort((a, b) => {
           const getTime = (d?: string) => {
             if (!d) return 0;
@@ -302,22 +270,14 @@ export default function ChildrenScreen() {
           };
           return getTime(b.date) - getTime(a.date);
         });
-
         setAttendanceHistory(records.slice(0, 14));
       } catch (err) {
-        console.error('Failed to load attendance history', err);
-        if (isMounted) {
-          setAttendanceError('Unable to load attendance history right now.');
-        }
+        if (isMounted) setAttendanceError('Unable to load attendance history right now.');
       } finally {
-        if (isMounted) {
-          setAttendanceLoading(false);
-        }
+        if (isMounted) setAttendanceLoading(false);
       }
     };
-
     fetchAttendance();
-
     return () => {
       isMounted = false;
     };
@@ -336,10 +296,6 @@ export default function ChildrenScreen() {
     }
   };
 
-  const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
-
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -352,17 +308,21 @@ export default function ChildrenScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title}>My Children</Text>
+            <View>
+              <Text style={styles.title}>My Children</Text>
+              <Text style={styles.subtitle}>Manage enrollment and tracking</Text>
+            </View>
             <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
-              <Text style={styles.addButtonText}>+ Add Child</Text>
+              <Text style={styles.addButtonText}>+ Add</Text>
             </TouchableOpacity>
           </View>
 
           {children.length === 0 ? (
             <View style={styles.emptyCard}>
+              <Text style={styles.emptyIcon}>👶</Text>
               <Text style={styles.emptyText}>No children added yet</Text>
               <Text style={styles.emptySubtext}>Tap "Add Child" to assign a child to a driver</Text>
             </View>
@@ -370,51 +330,52 @@ export default function ChildrenScreen() {
             children.map((child) => (
               <TouchableOpacity
                 key={child.id}
-                style={styles.childCard}
+                style={[styles.childCard, { borderLeftColor: getStatusColor(child.status) }]}
                 onPress={() => viewChildDetails(child)}
-                activeOpacity={0.7}>
+                activeOpacity={0.8}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.childName}>{child.name}</Text>
                   <View
                     style={[
                       styles.statusBadge,
-                      { backgroundColor: getStatusColor(child.status) + '20' },
+                      { backgroundColor: getStatusColor(child.status) + '15' },
                     ]}>
+                    <View
+                      style={[styles.statusDot, { backgroundColor: getStatusColor(child.status) }]}
+                    />
                     <Text style={[styles.statusText, { color: getStatusColor(child.status) }]}>
-                      {getStatusText(child.status)}
+                      {child.status.toUpperCase()}
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Age:</Text>
-                  <Text style={styles.value}>{child.age} years</Text>
+                <View style={styles.cardGrid}>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.cardLabel}>Age</Text>
+                    <Text style={styles.cardValue}>{child.age} yrs</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.cardLabel}>Grade</Text>
+                    <Text style={styles.cardValue}>{child.grade}</Text>
+                  </View>
                 </View>
 
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Grade:</Text>
-                  <Text style={styles.value}>{child.grade}</Text>
+                <View style={styles.cardDivider} />
+
+                <View style={styles.driverSummary}>
+                  <Text style={styles.driverLabel}>DRIVER</Text>
+                  <Text style={styles.driverValue}>{child.driverName}</Text>
                 </View>
 
-                <View style={styles.divider} />
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Driver:</Text>
-                  <Text style={styles.value}>{child.driverName}</Text>
+                <View style={styles.tapIndicator}>
+                  <Text style={styles.tapIndicatorText}>View Attendance & Locations ›</Text>
                 </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>Phone:</Text>
-                  <Text style={styles.value}>{child.driverPhone}</Text>
-                </View>
-
-                <Text style={styles.tapHint}>Tap to view locations</Text>
               </TouchableOpacity>
             ))
           )}
         </View>
       </ScrollView>
 
-      {/* Add Child Modal */}
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -425,97 +386,93 @@ export default function ChildrenScreen() {
         }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Add Child</Text>
 
-              {/* Driver Search Section */}
-              <Text style={styles.sectionTitle}>1. Search Driver</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Driver's Email"
-                value={searchDriverEmail}
-                onChangeText={setSearchDriverEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                style={styles.searchButton}
-                onPress={searchDriver}
-                disabled={searchingDriver}>
-                {searchingDriver ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text style={styles.searchButtonText}>Search Driver</Text>
-                )}
-              </TouchableOpacity>
+              <Text style={styles.sectionHeading}>1. Driver Assignment</Text>
+              <View style={styles.searchWrapper}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Driver's Email Address"
+                  value={searchDriverEmail}
+                  onChangeText={setSearchDriverEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={styles.searchIconButton}
+                  onPress={searchDriver}
+                  disabled={searchingDriver}>
+                  {searchingDriver ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.searchIconText}>🔍</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
 
               {driverFound && (
-                <View style={styles.driverFoundCard}>
-                  <Text style={styles.driverFoundTitle}>✓ Driver Found!</Text>
-                  <Text style={styles.driverFoundText}>Name: {driverFound.name}</Text>
-                  <Text style={styles.driverFoundText}>Email: {driverFound.email}</Text>
-                  <Text style={styles.driverFoundText}>Phone: {driverFound.phone}</Text>
+                <View style={styles.driverFoundBox}>
+                  <Text style={styles.driverBoxTitle}>Driver Verified</Text>
+                  <Text style={styles.driverBoxName}>{driverFound.name}</Text>
+                  <Text style={styles.driverBoxDetail}>{driverFound.phone}</Text>
                 </View>
               )}
 
-              {/* Child Details Section */}
-              <Text style={styles.sectionTitle}>2. Child Details</Text>
+              <Text style={styles.sectionHeading}>2. Student Profile</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Child's Name"
+                placeholder="Full Name"
                 value={childName}
                 onChangeText={setChildName}
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Age"
-                value={childAge}
-                onChangeText={setChildAge}
-                keyboardType="numeric"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Grade"
-                value={childGrade}
-                onChangeText={setChildGrade}
-              />
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginRight: 8 }]}
+                  placeholder="Age"
+                  value={childAge}
+                  onChangeText={setChildAge}
+                  keyboardType="numeric"
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Grade"
+                  value={childGrade}
+                  onChangeText={setChildGrade}
+                />
+              </View>
 
-              {/* Locations Section */}
-              <Text style={styles.sectionTitle}>3. Locations</Text>
-
+              <Text style={styles.sectionHeading}>3. Set Locations</Text>
               <TouchableOpacity
-                style={styles.locationButton}
+                style={styles.pickerButton}
                 onPress={() => openLocationPicker('home')}>
-                <Text style={styles.locationButtonLabel}>Home Location</Text>
-                <Text style={styles.locationButtonText}>
-                  {homeLocation
-                    ? `✓ Selected (${homeLocation.latitude.toFixed(4)}, ${homeLocation.longitude.toFixed(4)})`
-                    : 'Tap to select on map'}
+                <Text style={styles.pickerLabel}>🏠 Home Location</Text>
+                <Text style={styles.pickerValue}>
+                  {homeLocation ? 'Location Locked' : 'Select on map'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.locationButton}
+                style={styles.pickerButton}
                 onPress={() => openLocationPicker('school')}>
-                <Text style={styles.locationButtonLabel}>School Location</Text>
-                <Text style={styles.locationButtonText}>
-                  {schoolLocation
-                    ? `✓ Selected (${schoolLocation.latitude.toFixed(4)}, ${schoolLocation.longitude.toFixed(4)})`
-                    : 'Tap to select on map'}
+                <Text style={styles.pickerLabel}>🏫 School Location</Text>
+                <Text style={styles.pickerValue}>
+                  {schoolLocation ? 'Location Locked' : 'Select on map'}
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.modalButtons}>
+              <View style={styles.formActions}>
                 <TouchableOpacity
-                  style={styles.cancelButton}
+                  style={styles.btnSecondary}
                   onPress={() => {
                     resetForm();
                     setModalVisible(false);
                   }}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={styles.btnSecondaryText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.submitButton} onPress={addChild}>
-                  <Text style={styles.submitButtonText}>Add Child</Text>
+                <TouchableOpacity style={styles.btnPrimary} onPress={addChild}>
+                  <Text style={styles.btnPrimaryText}>Add Child</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -523,29 +480,22 @@ export default function ChildrenScreen() {
         </View>
       </Modal>
 
-      {/* Map Selection Modal */}
       <Modal
         visible={mapModalVisible}
         animationType="slide"
         onRequestClose={() => setMapModalVisible(false)}>
-        <SafeAreaView style={styles.mapModalContainer}>
-          <View style={styles.mapHeader}>
-            <Text style={styles.mapTitle}>
-              Select {selectingLocation === 'home' ? 'Home' : 'School'} Location
+        <SafeAreaView style={styles.mapFullscreen}>
+          <View style={styles.mapToolbar}>
+            <Text style={styles.mapToolbarTitle}>
+              Pin {selectingLocation === 'home' ? 'Home' : 'School'}
             </Text>
-            <Text style={styles.mapSubtitle}>Tap on the map to place marker</Text>
           </View>
-
           <MapView
             provider={PROVIDER_GOOGLE}
-            style={styles.map}
+            style={styles.mapWidget}
             initialRegion={
               tempMarker
-                ? {
-                    ...tempMarker,
-                    latitudeDelta: 0.05,
-                    longitudeDelta: 0.05,
-                  }
+                ? { ...tempMarker, latitudeDelta: 0.01, longitudeDelta: 0.01 }
                 : defaultRegion
             }
             onPress={handleMapPress}>
@@ -558,298 +508,122 @@ export default function ChildrenScreen() {
               />
             )}
           </MapView>
-
-          <View style={styles.mapButtons}>
+          <View style={styles.mapFooter}>
             <TouchableOpacity
-              style={styles.mapCancelButton}
+              style={styles.btnSecondary}
               onPress={() => {
                 setMapModalVisible(false);
                 setTempMarker(null);
               }}>
-              <Text style={styles.mapCancelButtonText}>Cancel</Text>
+              <Text>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.mapConfirmButton} onPress={confirmLocation}>
-              <Text style={styles.mapConfirmButtonText}>Confirm Location</Text>
+            <TouchableOpacity style={styles.btnPrimary} onPress={confirmLocation}>
+              <Text style={styles.btnPrimaryText}>Set Location</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
       </Modal>
 
-      {/* Detail View Modal */}
       <Modal
         visible={detailModalVisible}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setDetailModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.detailModalContent}>
+          <View style={styles.detailSheet}>
+            <View style={styles.modalHandle} />
             <ScrollView showsVerticalScrollIndicator={false}>
               {selectedChild && (
                 <>
-                  <View style={styles.detailHeader}>
-                    <Text style={styles.detailTitle}>{selectedChild.name}</Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusColor(selectedChild.status) + '20' },
-                      ]}>
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { color: getStatusColor(selectedChild.status) },
-                        ]}>
-                        {getStatusText(selectedChild.status)}
-                      </Text>
-                    </View>
+                  <View style={styles.detailHeaderRow}>
+                    <Text style={styles.detailSheetTitle}>{selectedChild.name}</Text>
+                    <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
+                      <Text style={styles.closeX}>✕</Text>
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Student Info</Text>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Age:</Text>
-                      <Text style={styles.value}>{selectedChild.age} years</Text>
+                  <Text style={styles.logHeading}>ATTENDANCE LOG</Text>
+                  {attendanceLoading ? (
+                    <View style={styles.loaderBox}>
+                      <ActivityIndicator color={theme.colors.primary} />
                     </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Grade:</Text>
-                      <Text style={styles.value}>{selectedChild.grade}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Driver Info</Text>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Name:</Text>
-                      <Text style={styles.value}>{selectedChild.driverName}</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Phone:</Text>
-                      <Text style={styles.value}>{selectedChild.driverPhone}</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Email:</Text>
-                      <Text style={styles.valueSmall}>{selectedChild.driverEmail}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Attendance History</Text>
-                    {attendanceLoading ? (
-                      <View style={styles.attendanceLoading}>
-                        <ActivityIndicator color={theme.colors.primary} />
-                        <Text style={styles.attendanceSubtext}>Loading recent records...</Text>
-                      </View>
-                    ) : attendanceError ? (
-                      <Text style={styles.attendanceError}>{attendanceError}</Text>
-                    ) : attendanceHistory.length === 0 ? (
-                      <Text style={styles.attendanceSubtext}>No attendance records yet.</Text>
-                    ) : (
-                      attendanceHistory.map((record) => {
-                        const currentStatus = record.currentStatus ?? 'AT_HOME';
-                        return (
-                          <View key={record.date} style={styles.attendanceCard}>
-                            <View style={styles.attendanceHeader}>
-                              <Text style={styles.attendanceDate}>
-                                {formatDateLabel(record.date)}
-                              </Text>
-                              <View
-                                style={[
-                                  styles.attendanceChip,
-                                  {
-                                    backgroundColor: getCurrentStatusColor(currentStatus) + '20',
-                                  },
-                                ]}>
-                                <Text
-                                  style={[
-                                    styles.attendanceChipText,
-                                    { color: getCurrentStatusColor(currentStatus) },
-                                  ]}>
-                                  {formatCurrentStatus(currentStatus)}
-                                </Text>
-                              </View>
-                            </View>
-
-                            <View style={styles.attendanceRow}>
-                              <View>
-                                <Text style={styles.attendanceLabel}>Morning pickup</Text>
-                                <Text style={styles.attendanceTime}>
-                                  {formatTimestamp(record.morningPickup?.time)}
-                                </Text>
-                              </View>
-                              <View
-                                style={[
-                                  styles.attendanceChip,
-                                  {
-                                    backgroundColor:
-                                      getPickupStatusColor(
-                                        record.morningPickup?.status ?? 'PENDING'
-                                      ) + '20',
-                                  },
-                                ]}>
-                                <Text
-                                  style={[
-                                    styles.attendanceChipText,
-                                    {
-                                      color: getPickupStatusColor(
-                                        record.morningPickup?.status ?? 'PENDING'
-                                      ),
-                                    },
-                                  ]}>
-                                  {record.morningPickup?.status ?? 'PENDING'}
-                                </Text>
-                              </View>
-                            </View>
-
-                            <View style={styles.attendanceRow}>
-                              <View>
-                                <Text style={styles.attendanceLabel}>School drop-off</Text>
-                                <Text style={styles.attendanceTime}>
-                                  {formatTimestamp(record.schoolDropoff?.time)}
-                                </Text>
-                              </View>
-                              <View
-                                style={[
-                                  styles.attendanceChip,
-                                  {
-                                    backgroundColor:
-                                      getPickupStatusColor(
-                                        record.schoolDropoff?.status ?? 'PENDING'
-                                      ) + '20',
-                                  },
-                                ]}>
-                                <Text
-                                  style={[
-                                    styles.attendanceChipText,
-                                    {
-                                      color: getPickupStatusColor(
-                                        record.schoolDropoff?.status ?? 'PENDING'
-                                      ),
-                                    },
-                                  ]}>
-                                  {record.schoolDropoff?.status ?? 'PENDING'}
-                                </Text>
-                              </View>
-                            </View>
-
-                            <View style={styles.attendanceRow}>
-                              <View>
-                                <Text style={styles.attendanceLabel}>School pickup</Text>
-                                <Text style={styles.attendanceTime}>
-                                  {formatTimestamp(record.schoolPickup?.time)}
-                                </Text>
-                              </View>
-                              <View
-                                style={[
-                                  styles.attendanceChip,
-                                  {
-                                    backgroundColor:
-                                      getPickupStatusColor(
-                                        record.schoolPickup?.status ?? 'PENDING'
-                                      ) + '20',
-                                  },
-                                ]}>
-                                <Text
-                                  style={[
-                                    styles.attendanceChipText,
-                                    {
-                                      color: getPickupStatusColor(
-                                        record.schoolPickup?.status ?? 'PENDING'
-                                      ),
-                                    },
-                                  ]}>
-                                  {record.schoolPickup?.status ?? 'PENDING'}
-                                </Text>
-                              </View>
-                            </View>
-
-                            <View style={styles.attendanceRow}>
-                              <View>
-                                <Text style={styles.attendanceLabel}>Home drop-off</Text>
-                                <Text style={styles.attendanceTime}>
-                                  {formatTimestamp(record.homeDropoff?.time)}
-                                </Text>
-                              </View>
-                              <View
-                                style={[
-                                  styles.attendanceChip,
-                                  {
-                                    backgroundColor:
-                                      getPickupStatusColor(
-                                        record.homeDropoff?.status ?? 'PENDING'
-                                      ) + '20',
-                                  },
-                                ]}>
-                                <Text
-                                  style={[
-                                    styles.attendanceChipText,
-                                    {
-                                      color: getPickupStatusColor(
-                                        record.homeDropoff?.status ?? 'PENDING'
-                                      ),
-                                    },
-                                  ]}>
-                                  {record.homeDropoff?.status ?? 'PENDING'}
-                                </Text>
-                              </View>
-                            </View>
+                  ) : attendanceHistory.length === 0 ? (
+                    <Text style={styles.emptyLog}>No records for the last 14 days.</Text>
+                  ) : (
+                    attendanceHistory.map((record) => (
+                      <View key={record.date} style={styles.logCard}>
+                        <View style={styles.logDateRow}>
+                          <Text style={styles.logDateText}>{formatDateLabel(record.date)}</Text>
+                          <View
+                            style={[
+                              styles.logStatus,
+                              {
+                                backgroundColor:
+                                  getCurrentStatusColor(record.currentStatus || 'AT_HOME') + '15',
+                              },
+                            ]}>
+                            <Text
+                              style={[
+                                styles.logStatusText,
+                                { color: getCurrentStatusColor(record.currentStatus || 'AT_HOME') },
+                              ]}>
+                              {formatCurrentStatus(record.currentStatus || 'AT_HOME')}
+                            </Text>
                           </View>
-                        );
-                      })
-                    )}
-                  </View>
+                        </View>
+                        <View style={styles.logTimeline}>
+                          <View style={styles.timePoint}>
+                            <Text style={styles.timeLabel}>Pickup</Text>
+                            <Text style={styles.timeVal}>
+                              {formatTimestamp(record.morningPickup?.time)}
+                            </Text>
+                          </View>
+                          <View style={styles.timePoint}>
+                            <Text style={styles.timeLabel}>Dropoff</Text>
+                            <Text style={styles.timeVal}>
+                              {formatTimestamp(record.schoolDropoff?.time)}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))
+                  )}
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Home Location</Text>
-                    <MapView
-                      provider={PROVIDER_GOOGLE}
-                      style={styles.detailMap}
-                      initialRegion={{
-                        ...selectedChild.homeLocation,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01,
-                      }}
-                      scrollEnabled={false}
-                      zoomEnabled={false}>
-                      <Marker
-                        coordinate={selectedChild.homeLocation}
-                        pinColor={theme.colors.primary}
-                        title="Home"
-                      />
-                    </MapView>
-                    <Text style={styles.coordinatesText}>
-                      Lat: {selectedChild.homeLocation.latitude.toFixed(6)}, Lng:{' '}
-                      {selectedChild.homeLocation.longitude.toFixed(6)}
-                    </Text>
+                  <Text style={styles.logHeading}>LOCATIONS</Text>
+                  <View style={styles.mapRow}>
+                    <View style={styles.miniMapBox}>
+                      <Text style={styles.miniMapLabel}>Home</Text>
+                      <MapView
+                        pointerEvents="none"
+                        provider={PROVIDER_GOOGLE}
+                        style={styles.miniMap}
+                        initialRegion={{
+                          ...selectedChild.homeLocation,
+                          latitudeDelta: 0.005,
+                          longitudeDelta: 0.005,
+                        }}>
+                        <Marker coordinate={selectedChild.homeLocation} />
+                      </MapView>
+                    </View>
+                    <View style={styles.miniMapBox}>
+                      <Text style={styles.miniMapLabel}>School</Text>
+                      <MapView
+                        pointerEvents="none"
+                        provider={PROVIDER_GOOGLE}
+                        style={styles.miniMap}
+                        initialRegion={{
+                          ...selectedChild.schoolLocation,
+                          latitudeDelta: 0.005,
+                          longitudeDelta: 0.005,
+                        }}>
+                        <Marker
+                          coordinate={selectedChild.schoolLocation}
+                          pinColor={theme.colors.secondary}
+                        />
+                      </MapView>
+                    </View>
                   </View>
-
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>School Location</Text>
-                    <MapView
-                      provider={PROVIDER_GOOGLE}
-                      style={styles.detailMap}
-                      initialRegion={{
-                        ...selectedChild.schoolLocation,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01,
-                      }}
-                      scrollEnabled={false}
-                      zoomEnabled={false}>
-                      <Marker
-                        coordinate={selectedChild.schoolLocation}
-                        pinColor={theme.colors.secondary}
-                        title="School"
-                      />
-                    </MapView>
-                    <Text style={styles.coordinatesText}>
-                      Lat: {selectedChild.schoolLocation.latitude.toFixed(6)}, Lng:{' '}
-                      {selectedChild.schoolLocation.longitude.toFixed(6)}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => setDetailModalVisible(false)}>
-                    <Text style={styles.closeButtonText}>Close</Text>
-                  </TouchableOpacity>
+                  <View style={{ height: 40 }} />
                 </>
               )}
             </ScrollView>
@@ -861,395 +635,262 @@ export default function ChildrenScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  container: {
-    padding: theme.spacing.lg,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  safeArea: { flex: 1, backgroundColor: '#F8F9FB' },
+  scrollView: { flex: 1 },
+  container: { padding: 24 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+    alignItems: 'flex-start',
+    marginBottom: 32,
   },
-  title: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
+  title: { fontSize: 32, fontWeight: '800', color: theme.colors.text.primary, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: theme.colors.text.secondary, marginTop: 4 },
   addButton: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  addButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   emptyCard: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.xl,
-    borderRadius: theme.borderRadius.lg,
+    backgroundColor: '#fff',
+    padding: 40,
+    borderRadius: 24,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  emptyText: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
-  },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyText: { fontSize: 18, fontWeight: '700', color: theme.colors.text.primary, marginBottom: 8 },
   emptySubtext: {
     fontSize: 14,
-    color: theme.colors.text.light,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
+    lineHeight: 20,
   },
   childCard: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    borderLeftWidth: 6,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: 16,
   },
-  childName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    flex: 1,
-  },
+  childName: { fontSize: 20, fontWeight: '800', color: theme.colors.text.primary },
   statusBadge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: theme.spacing.sm,
-  },
-  label: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    width: 80,
-    fontWeight: '500',
-  },
-  value: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    flex: 1,
-  },
-  valueSmall: {
-    fontSize: 13,
-    color: theme.colors.text.primary,
-    flex: 1,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: theme.spacing.sm,
-  },
-  tapHint: {
-    fontSize: 12,
-    color: theme.colors.primary,
-    textAlign: 'center',
-    marginTop: theme.spacing.sm,
-    fontStyle: 'italic',
-  },
-  attendanceLoading: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  attendanceSubtext: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-  },
-  attendanceError: {
-    fontSize: 13,
-    color: theme.colors.error,
-  },
-  attendanceCard: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-  },
-  attendanceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  attendanceDate: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-  },
-  attendanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingHorizontal: 10,
     paddingVertical: 6,
+    borderRadius: 8,
   },
-  attendanceLabel: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-    fontWeight: '500',
-  },
-  attendanceTime: {
-    fontSize: 12,
-    color: theme.colors.text.light,
-  },
-  attendanceChip: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.sm,
-  },
-  attendanceChipText: {
-    fontSize: 12,
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  cardGrid: { flexDirection: 'row', gap: 24 },
+  gridItem: { flex: 0 },
+  cardLabel: {
+    fontSize: 11,
     fontWeight: '600',
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  cardValue: { fontSize: 15, fontWeight: '700', color: theme.colors.text.primary },
+  cardDivider: { height: 1, backgroundColor: '#F1F3F5', marginVertical: 16 },
+  driverSummary: { marginBottom: 12 },
+  driverLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.colors.text.light,
+    letterSpacing: 1.5,
+    marginBottom: 4,
   },
+  driverValue: { fontSize: 14, fontWeight: '600', color: theme.colors.text.primary },
+  tapIndicator: { marginTop: 4 },
+  tapIndicatorText: { fontSize: 12, color: theme.colors.primary, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.lg,
-    borderTopRightRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    maxHeight: '90%',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 28,
+    maxHeight: '92%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#E9ECEF',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '800',
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing.lg,
+    marginBottom: 24,
+    textAlign: 'center',
   },
-  sectionTitle: {
+  sectionHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  searchWrapper: { flexDirection: 'row', marginBottom: 16 },
+  searchInput: {
+    flex: 1,
+    backgroundColor: '#F8F9FB',
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-  },
-  input: {
-    backgroundColor: theme.colors.background,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.sm,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-    fontSize: 16,
+    borderColor: '#E9ECEF',
   },
-  searchButton: {
+  searchIconButton: {
     backgroundColor: theme.colors.secondary,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
+    width: 60,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
   },
-  searchButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  driverFoundCard: {
-    backgroundColor: theme.colors.success + '10',
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    marginBottom: theme.spacing.md,
+  searchIconText: { fontSize: 20 },
+  driverFoundBox: {
+    backgroundColor: '#EBFBEE',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: theme.colors.success,
+    borderColor: '#D3F9D8',
   },
-  driverFoundTitle: {
+  driverBoxTitle: { fontSize: 12, fontWeight: '800', color: '#2B8A3E', marginBottom: 4 },
+  driverBoxName: { fontSize: 16, fontWeight: '700', color: '#2B8A3E' },
+  driverBoxDetail: { fontSize: 13, color: '#2B8A3E', opacity: 0.8 },
+  input: {
+    backgroundColor: '#F8F9FB',
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.success,
-    marginBottom: theme.spacing.sm,
-  },
-  driverFoundText: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    marginBottom: 4,
-  },
-  locationButton: {
-    backgroundColor: theme.colors.background,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.sm,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
+    borderColor: '#E9ECEF',
   },
-  locationButtonLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: 4,
-  },
-  locationButtonText: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.lg,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: theme.colors.border,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  submitButton: {
-    flex: 1,
-    backgroundColor: theme.colors.primary,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  mapModalContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  mapHeader: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  mapTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  mapSubtitle: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 4,
-  },
-  map: {
-    flex: 1,
-  },
-  mapButtons: {
-    flexDirection: 'row',
-    padding: theme.spacing.md,
-    gap: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  mapCancelButton: {
-    flex: 1,
-    backgroundColor: theme.colors.border,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    alignItems: 'center',
-  },
-  mapCancelButtonText: {
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  mapConfirmButton: {
-    flex: 1,
-    backgroundColor: theme.colors.primary,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    alignItems: 'center',
-  },
-  mapConfirmButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  detailModalContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.lg,
-    borderTopRightRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    maxHeight: '90%',
-  },
-  detailHeader: {
+  inputRow: { flexDirection: 'row', marginBottom: 4 },
+  pickerButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.lg,
   },
-  detailTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
+  pickerLabel: { fontSize: 15, fontWeight: '600', color: theme.colors.text.primary },
+  pickerValue: { fontSize: 13, color: theme.colors.primary, fontWeight: '700' },
+  formActions: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 20 },
+  btnPrimary: {
     flex: 1,
-  },
-  detailSection: {
-    marginBottom: theme.spacing.lg,
-  },
-  detailSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.sm,
-  },
-  detailMap: {
-    height: 200,
-    borderRadius: theme.borderRadius.sm,
-    marginTop: theme.spacing.sm,
-  },
-  coordinatesText: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  closeButton: {
     backgroundColor: theme.colors.primary,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: theme.spacing.md,
   },
-  closeButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 16,
+  btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  btnSecondary: {
+    flex: 1,
+    backgroundColor: '#F1F3F5',
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  btnSecondaryText: { color: theme.colors.text.secondary, fontWeight: '700', fontSize: 16 },
+  mapFullscreen: { flex: 1 },
+  mapToolbar: {
+    padding: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  mapToolbarTitle: { fontSize: 18, fontWeight: '800' },
+  mapWidget: { flex: 1 },
+  mapFooter: { flexDirection: 'row', padding: 20, gap: 12, backgroundColor: '#fff' },
+  detailSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 28,
+    height: '85%',
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  detailSheetTitle: { fontSize: 24, fontWeight: '900', color: theme.colors.text.primary },
+  closeX: { fontSize: 24, color: theme.colors.text.light },
+  logHeading: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.colors.text.light,
+    letterSpacing: 1.5,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  logCard: { backgroundColor: '#F8F9FB', borderRadius: 16, padding: 16, marginBottom: 12 },
+  logDateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  logDateText: { fontSize: 15, fontWeight: '700', color: theme.colors.text.primary },
+  logStatus: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  logStatusText: { fontSize: 10, fontWeight: '800' },
+  logTimeline: { flexDirection: 'row', gap: 32 },
+  timePoint: { flex: 0 },
+  timeLabel: { fontSize: 10, color: theme.colors.text.light, fontWeight: '700', marginBottom: 2 },
+  timeVal: { fontSize: 14, fontWeight: '600' },
+  emptyLog: { textAlign: 'center', padding: 20, color: theme.colors.text.light },
+  loaderBox: { padding: 40 },
+  mapRow: { flexDirection: 'row', gap: 12 },
+  miniMapBox: { flex: 1 },
+  miniMapLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    color: theme.colors.text.secondary,
+  },
+  miniMap: { height: 120, borderRadius: 16 },
 });

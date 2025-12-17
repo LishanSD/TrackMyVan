@@ -1,11 +1,5 @@
-/**
- * Map Screen
- *
- * Displays real-time vehicle tracking and optimized route visualization
- */
-
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTrip } from '../../src/context/TripContext';
 import RouteMapView from '../../src/components/RouteMapView';
@@ -15,20 +9,17 @@ export default function MapScreen() {
   const { tripState, isActive, hasRoute, clearTrip } = useTrip();
   const [showCompletionSummary, setShowCompletionSummary] = useState(false);
 
-  // Show completion summary when trip ends
   useEffect(() => {
     if (tripState.status === 'COMPLETED' && tripState.route) {
       setShowCompletionSummary(true);
     }
   }, [tripState.status]);
 
-  // Handle clearing completed trip
   const handleClearCompletedTrip = () => {
     setShowCompletionSummary(false);
     clearTrip();
   };
 
-  // Calculate trip statistics
   const getTripStats = () => {
     if (!tripState.route) return null;
 
@@ -49,75 +40,79 @@ export default function MapScreen() {
 
   const stats = getTripStats();
 
-  // Empty state - no active trip
   if (!isActive && !showCompletionSummary) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.emptyContainer}>
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>🗺️</Text>
+            <View style={styles.iconCircle}>
+              <Text style={styles.emptyIcon}>🗺️</Text>
+            </View>
             <Text style={styles.emptyTitle}>No Active Trip</Text>
             <Text style={styles.emptyText}>
               Start a trip from the Dashboard to see your optimized route and vehicle location here.
             </Text>
-            <Text style={styles.emptyHint}>
-              The map will automatically display your route when you begin a trip.
-            </Text>
+            <View style={styles.hintBox}>
+              <Text style={styles.emptyHint}>
+                The map will automatically display your route when you begin a trip.
+              </Text>
+            </View>
           </View>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Trip completed state
   if (showCompletionSummary && stats) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        {/* Show map with completed route in gray */}
-        {tripState.route && (
-          <View style={styles.mapContainer}>
-            <RouteMapView
-              route={tripState.route}
-              currentLocation={tripState.vehicleLocation || undefined}
-              showETAs={false}
-              style={styles.map}
-            />
-            {/* Overlay for completed state */}
-            <View style={styles.completionOverlay}>
-              <View style={styles.completionCard}>
-                <Text style={styles.completionTitle}>🎉 Trip Completed!</Text>
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        <View style={styles.mapContainer}>
+          {tripState.route && (
+            <>
+              <RouteMapView
+                route={tripState.route}
+                currentLocation={tripState.vehicleLocation || undefined}
+                showETAs={false}
+                style={styles.map}
+              />
+              <View style={styles.completionOverlay}>
+                <View style={styles.completionCard}>
+                  <Text style={styles.completionTitle}>🎉 Trip Completed!</Text>
 
-                <View style={styles.statsContainer}>
-                  <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Stops Completed:</Text>
-                    <Text style={styles.statValue}>
-                      {stats.completedStops}/{stats.totalStops}
-                    </Text>
+                  <View style={styles.statsGrid}>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.statLabel}>Stops Completed:</Text>
+                      <Text style={styles.statValue}>
+                        {stats.completedStops}/{stats.totalStops}
+                      </Text>
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.statLabel}>Total Distance:</Text>
+                      <Text style={styles.statValue}>{stats.distance} km</Text>
+                    </View>
+                    <View style={styles.gridItem}>
+                      <Text style={styles.statLabel}>Duration:</Text>
+                      <Text style={styles.statValue}>{stats.duration} min</Text>
+                    </View>
                   </View>
-                  <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Total Distance:</Text>
-                    <Text style={styles.statValue}>{stats.distance} km</Text>
-                  </View>
-                  <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Duration:</Text>
-                    <Text style={styles.statValue}>{stats.duration} min</Text>
-                  </View>
+
+                  <TouchableOpacity
+                    style={styles.clearButton}
+                    onPress={handleClearCompletedTrip}
+                    activeOpacity={0.8}>
+                    <Text style={styles.clearButtonText}>Clear Map</Text>
+                  </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity style={styles.clearButton} onPress={handleClearCompletedTrip}>
-                  <Text style={styles.clearButtonText}>Clear Map</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          </View>
-        )}
+            </>
+          )}
+        </View>
       </SafeAreaView>
     );
   }
 
-  // Active trip state
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       {hasRoute && tripState.route ? (
         <View style={styles.mapContainer}>
           <RouteMapView
@@ -127,8 +122,8 @@ export default function MapScreen() {
             style={styles.map}
           />
 
-          {/* Trip type indicator */}
           <View style={styles.tripTypeIndicator}>
+            <View style={styles.indicatorPulse} />
             <Text style={styles.tripTypeText}>
               {tripState.tripType === 'MORNING' ? '🌅 Morning Trip' : '🌆 Afternoon Trip'}
             </Text>
@@ -136,16 +131,13 @@ export default function MapScreen() {
         </View>
       ) : (
         <View style={styles.loadingContainer}>
+          <ActivityIndicator color={theme.colors.primary} size="large" />
           <Text style={styles.loadingText}>Loading route...</Text>
         </View>
       )}
     </SafeAreaView>
   );
 }
-
-// ============================================================================
-// Styles
-// ============================================================================
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -162,63 +154,89 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     right: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 100,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    zIndex: 10,
+  },
+  indicatorPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+    marginRight: 8,
   },
   tripTypeText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: theme.colors.text.primary,
+    letterSpacing: 0.3,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    padding: 24,
   },
   emptyCard: {
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: 24,
     backgroundColor: theme.colors.surface,
     padding: 32,
-    maxWidth: 400,
+    width: '100%',
+    maxWidth: 360,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  iconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: theme.colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+    fontSize: 48,
   },
   emptyTitle: {
-    marginBottom: 8,
-    fontSize: 24,
-    fontWeight: 'bold',
+    marginBottom: 10,
+    fontSize: 22,
+    fontWeight: '800',
     color: theme.colors.text.primary,
     textAlign: 'center',
   },
   emptyText: {
     textAlign: 'center',
-    fontSize: 16,
+    fontSize: 15,
     color: theme.colors.text.secondary,
-    marginBottom: 12,
-    lineHeight: 24,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  hintBox: {
+    backgroundColor: theme.colors.background,
+    padding: 12,
+    borderRadius: 12,
+    width: '100%',
   },
   emptyHint: {
-    marginTop: 8,
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.text.secondary,
     textAlign: 'center',
     fontStyle: 'italic',
+    opacity: 0.8,
   },
   loadingContainer: {
     flex: 1,
@@ -226,69 +244,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16,
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '500',
     color: theme.colors.text.secondary,
   },
   completionOverlay: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    top: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+    padding: 20,
   },
   completionCard: {
     backgroundColor: theme.colors.surface,
-    borderRadius: 16,
+    borderRadius: 28,
     padding: 24,
     width: '100%',
-    maxWidth: 400,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 10,
   },
   completionTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: theme.colors.text.primary,
     textAlign: 'center',
     marginBottom: 24,
   },
-  statsContainer: {
-    marginBottom: 24,
+  statsGrid: {
+    marginBottom: 28,
+    gap: 12,
   },
-  statRow: {
+  gridItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: theme.colors.background,
+    borderRadius: 16,
   },
   statLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: theme.colors.text.secondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 16,
     color: theme.colors.text.primary,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   clearButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: 14,
-    borderRadius: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   clearButtonText: {
-    color: theme.colors.surface,
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

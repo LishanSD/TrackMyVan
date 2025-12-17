@@ -11,11 +11,31 @@ const getTodayDateString = (): string => {
 };
 
 /**
- * Get child status for a specific date
- * @param childId - The student's ID
- * @param date - ISO date string (YYYY-MM-DD)
- * @returns Promise<ChildStatus | null>
+ * Convert Firestore timestamp to milliseconds
  */
+const toMillis = (
+  value?: number | { seconds: number; nanoseconds?: number } | any
+): number | undefined => {
+  if (!value) return undefined;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'object' && 'seconds' in value) {
+    return value.seconds * 1000 + ((value.nanoseconds ?? 0) / 1_000_000);
+  }
+  return undefined;
+};
+
+/**
+ * Convert PickupStatus timestamps from Firestore format to number
+ */
+const convertPickupStatus = (status: any): PickupStatus => {
+  if (!status) return { status: 'PENDING' };
+  return {
+    status: status.status || 'PENDING',
+    time: toMillis(status.time),
+    location: status.location,
+  };
+};
+
 export const getChildStatus = async (
   childId: string,
   date: string
@@ -27,10 +47,16 @@ export const getChildStatus = async (
       return null;
     }
 
+    const data = statusDoc.data();
+
     return {
       childId,
       date,
-      ...statusDoc.data(),
+      currentStatus: data.currentStatus || 'AT_HOME',
+      morningPickup: convertPickupStatus(data.morningPickup),
+      schoolDropoff: convertPickupStatus(data.schoolDropoff),
+      schoolPickup: convertPickupStatus(data.schoolPickup),
+      homeDropoff: convertPickupStatus(data.homeDropoff),
     } as ChildStatus;
   } catch (error) {
     console.error('Error fetching child status:', error);

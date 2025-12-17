@@ -7,9 +7,11 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { Student, ChildStatus } from '../../src/types/types';
 import { subscribeToParentStudents } from '../../src/services/childrenService';
@@ -18,7 +20,7 @@ import { StudentCard } from '../../src/components/StudentCard';
 import { theme } from '../../src/theme/theme';
 
 export default function DashboardScreen() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const router = useRouter();
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -27,7 +29,6 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch child statuses for all students
   const fetchChildStatuses = async (studentList: Student[]) => {
     try {
       const statusMap = new Map<string, ChildStatus>();
@@ -45,7 +46,6 @@ export default function DashboardScreen() {
     }
   };
 
-  // Subscribe to parent's students
   useEffect(() => {
     if (!user) return;
 
@@ -68,14 +68,12 @@ export default function DashboardScreen() {
     return () => unsubscribe();
   }, [user]);
 
-  // Handle pull to refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchChildStatuses(students);
     setRefreshing(false);
   };
 
-  // Handle card click with validation
   const handleCardClick = (student: Student) => {
     if (student.status !== 'approved') {
       Alert.alert(
@@ -95,7 +93,6 @@ export default function DashboardScreen() {
       return;
     }
 
-    // Navigate to tracking screen
     router.push(`/tracking/${student.id}` as const);
   };
 
@@ -114,6 +111,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -121,48 +119,63 @@ export default function DashboardScreen() {
             colors={[theme.colors.primary]}
           />
         }>
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greetingText}>Hello, Parent</Text>
             <Text style={styles.dashboardTitle}>Dashboard</Text>
-            <Text style={styles.dashboardSubtitle}>Track your children's van in real-time</Text>
           </View>
-
-          {/* Error Message */}
-          {error && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>⚠️ {error}</Text>
-            </View>
-          )}
-
-          {/* Student Cards */}
-          {students.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyIcon}>👥</Text>
-              <Text style={styles.emptyText}>No students added yet</Text>
-              <Text style={styles.emptySubtext}>
-                Add children from the Children tab to track their van
-              </Text>
-            </View>
+          {userProfile?.profilePic ? (
+            <Image source={{ uri: userProfile.profilePic }} style={styles.profilePic} />
           ) : (
-            <View style={styles.cardsContainer}>
-              {students.map((student) => (
-                <StudentCard
-                  key={student.id}
-                  student={student}
-                  childStatus={childStatuses.get(student.id) || null}
-                  onPress={handleCardClick}
-                />
-              ))}
+            <View style={styles.placeholderPic}>
+              <Ionicons name="person" size={20} color="#9CA3AF" />
             </View>
           )}
+        </View>
 
-          {/* Quick Info Box */}
-          <View style={styles.infoBox}>
-            <Text style={styles.infoBoxText}>
-              Pull down to refresh • Tap cards to view live tracking
+        {/* Error Message */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning-outline" size={20} color={theme.colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {/* Student Cards Grid */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your Children</Text>
+        </View>
+
+        {students.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="happy-outline" size={40} color="#9CA3AF" />
+            </View>
+            <Text style={styles.emptyText}>No students added yet</Text>
+            <Text style={styles.emptySubtext}>
+              Add children from the Children tab to start tracking.
             </Text>
           </View>
+        ) : (
+          <View style={styles.cardsContainer}>
+            {students.map((student) => (
+              <StudentCard
+                key={student.id}
+                student={student}
+                childStatus={childStatuses.get(student.id) || null}
+                onPress={handleCardClick}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Info Tip */}
+        <View style={styles.infoBox}>
+          <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
+          <Text style={styles.infoBoxText}>
+            Pull down to refresh • Tap a card for live map tracking
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -172,13 +185,14 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F9FAFB',
   },
   scrollView: {
     flex: 1,
   },
-  container: {
-    padding: theme.spacing.lg,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -186,71 +200,120 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: theme.spacing.md,
+    marginTop: 12,
     fontSize: 16,
-    color: theme.colors.text.secondary,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   header: {
-    marginBottom: theme.spacing.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  dashboardTitle: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
+  greetingText: {
+    fontSize: 14,
+    color: '#6B7280',
     marginBottom: 4,
   },
-  dashboardSubtitle: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
+  dashboardTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  profilePic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  placeholderPic: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
   },
   errorBanner: {
-    backgroundColor: theme.colors.error + '20',
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.error,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    gap: 8,
   },
   errorText: {
     fontSize: 14,
     color: theme.colors.error,
     fontWeight: '500',
+    flex: 1,
   },
   cardsContainer: {
-    marginBottom: theme.spacing.md,
+    gap: 16,
+    marginBottom: 24,
   },
   emptyCard: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.xl,
-    borderRadius: theme.borderRadius.lg,
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    backgroundColor: '#FFFFFF',
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    marginBottom: 24,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: theme.spacing.md,
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.sm,
+    color: '#374151',
+    marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: theme.colors.text.secondary,
+    color: '#9CA3AF',
     textAlign: 'center',
+    maxWidth: 200,
   },
   infoBox: {
-    marginTop: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.primary + '10',
-    padding: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
   infoBoxText: {
-    textAlign: 'center',
     fontSize: 12,
-    color: theme.colors.primary,
+    color: '#1E40AF', // Darker blue
     fontWeight: '500',
   },
 });
