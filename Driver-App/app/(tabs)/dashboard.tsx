@@ -232,9 +232,32 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     const checkTaskStatus = async () => {
-      if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      const storedTripId = await AsyncStorage.getItem('currentTripId');
+      const storedTripType = (await AsyncStorage.getItem('currentTripType')) as TripType | null;
+
+      if (isRegistered && storedTripId) {
+        // We have an active background task and a persisted trip ID → restore state
+        setCurrentTripId(storedTripId);
+        if (storedTripType === 'MORNING' || storedTripType === 'AFTERNOON') {
+          setTripType(storedTripType);
+        }
         setIsTripActive(true);
-        setTripStatusText('Trip Active. Location tracking in progress.');
+        setTripStatusText(`Trip IN_PROGRESS: ${storedTripType ?? tripType}`);
+      } else if (isRegistered && !storedTripId) {
+        // Orphaned background task with no trip ID → stop it and reset UI
+        try {
+          await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+        } catch (e) {
+          console.error('Failed to stop orphaned location task:', e);
+        }
+        setIsTripActive(false);
+        setCurrentTripId(null);
+        setTripStatusText('No active trip');
+      } else {
+        setIsTripActive(false);
+        setCurrentTripId(null);
+        setTripStatusText('No active trip');
       }
     };
     checkTaskStatus();
@@ -425,6 +448,7 @@ export default function DashboardScreen() {
       setCurrentTripId(tripId);
       await AsyncStorage.setItem('driverId', driverId);
       await AsyncStorage.setItem('currentTripId', tripId);
+      await AsyncStorage.setItem('currentTripType', tripType);
 
       // Save route to TripContext
       setTripData(tripId, tripType, optimizedRoute);
