@@ -74,6 +74,20 @@ export interface UserProfile {
   createdAt: string;
 }
 
+export type MessageSenderRole = 'driver' | 'parent';
+
+export interface Message {
+  id: string;
+  driverId: string;
+  parentId: string;
+  studentId?: string;
+  text: string;
+  senderId: string;
+  senderRole: MessageSenderRole;
+  createdAt?: number | { seconds: number; nanoseconds: number };
+  isBroadcast?: boolean;
+}
+
 export interface Trip {
   id: string;
   driverId: string;
