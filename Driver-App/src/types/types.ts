@@ -1,7 +1,7 @@
 import { FieldValue } from 'firebase/firestore';
 
 export type TripType = 'MORNING' | 'AFTERNOON';
-export type ChildActionEvent = 'PICKUP' | 'DROPOFF';
+export type ChildActionEvent = 'PICKUP' | 'DROPOFF' | 'NOT_ATTENDED';
 
 export interface Location {
   latitude: number;
@@ -10,7 +10,7 @@ export interface Location {
 }
 
 export interface LocationRecord {
-  status: 'COMPLETED' | 'PENDING';
+  status: 'COMPLETED' | 'PENDING' | 'NOT_ATTENDED';
   time: FieldValue;
   location: {
     latitude: number;
@@ -25,6 +25,7 @@ export interface StudentStatus {
   schoolPickup: LocationRecord;
   homeDropoff: LocationRecord;
   currentStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
+  attendanceStatus?: string;
 }
 
 export type PickupStatusState = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
@@ -62,7 +63,7 @@ export interface Student {
   homeLocation: Location;
   schoolLocation: Location;
   status?: 'pending' | 'approved' | 'rejected';
-  currentVanStatus?: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF';
+  currentVanStatus?: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF' | 'NOT_ATTENDED';
   createdAt?: string;
 }
 

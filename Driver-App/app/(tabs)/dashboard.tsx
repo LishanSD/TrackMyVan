@@ -86,8 +86,17 @@ interface StudentListProps {
 const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tripType }) => {
   // State to track which specific student button is being pressed
   const [pressedStudentId, setPressedStudentId] = useState<string | null>(null);
+  const [pressedNotAttendedId, setPressedNotAttendedId] = useState<string | null>(null);
 
   const getActionDetails = (student: Student) => {
+    if (student.currentVanStatus === 'NOT_ATTENDED') {
+      return {
+        label: 'Not Attended',
+        action: null,
+        style: styles.notAttendedButton,
+      };
+    }
+
     if (tripType === 'MORNING') {
       if (student.currentVanStatus === 'NOT_PICKED_UP') {
         return {
@@ -125,8 +134,12 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
     return { label: 'Complete', action: null, style: styles.completeButton };
   };
 
-  const activeStudents = students.filter((s) => s.currentVanStatus !== 'DROPPED_OFF');
-  const completedStudents = students.filter((s) => s.currentVanStatus === 'DROPPED_OFF');
+  const activeStudents = students.filter(
+    (s) => s.currentVanStatus !== 'DROPPED_OFF' && s.currentVanStatus !== 'NOT_ATTENDED'
+  );
+  const completedStudents = students.filter(
+    (s) => s.currentVanStatus === 'DROPPED_OFF' || s.currentVanStatus === 'NOT_ATTENDED'
+  );
 
   const renderStudent = (student: Student) => {
     const { label, action, style } = getActionDetails(student);
@@ -140,22 +153,41 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
             Status: {(student.currentVanStatus ?? 'NOT_PICKED_UP').replace(/_/g, ' ')}
           </Text>
         </View>
-        {action ? (
-          // CONVERTED: TouchableWithoutFeedback
-          <TouchableWithoutFeedback
-            onPress={() => action && onUpdateStatus(student.id, action)}
-            onPressIn={() => setPressedStudentId(student.id)}
-            onPressOut={() => setPressedStudentId(null)}>
-            {/* Style applied to the View, NOT the Touchable */}
-            <View style={[styles.statusButton, style, isPressed && { opacity: 0.5 }]}>
+        <View style={styles.actionButtonsColumn}>
+          {action ? (
+            // CONVERTED: TouchableWithoutFeedback
+            <TouchableWithoutFeedback
+              onPress={() => action && onUpdateStatus(student.id, action)}
+              onPressIn={() => setPressedStudentId(student.id)}
+              onPressOut={() => setPressedStudentId(null)}>
+              {/* Style applied to the View, NOT the Touchable */}
+              <View style={[styles.statusButton, style, isPressed && { opacity: 0.5 }]}>
+                <Text style={styles.statusButtonText}>{label}</Text>
+              </View>
+            </TouchableWithoutFeedback>
+          ) : (
+            <View style={[styles.statusButton, style || styles.completeButton]}>
               <Text style={styles.statusButtonText}>{label}</Text>
             </View>
-          </TouchableWithoutFeedback>
-        ) : (
-          <View style={[styles.statusButton, styles.completeButton]}>
-            <Text style={styles.statusButtonText}>{label}</Text>
-          </View>
-        )}
+          )}
+
+          {student.currentVanStatus !== 'DROPPED_OFF' &&
+            student.currentVanStatus !== 'NOT_ATTENDED' && (
+              <TouchableWithoutFeedback
+                onPress={() => onUpdateStatus(student.id, 'NOT_ATTENDED')}
+                onPressIn={() => setPressedNotAttendedId(student.id)}
+                onPressOut={() => setPressedNotAttendedId(null)}>
+                <View
+                  style={[
+                    styles.statusButton,
+                    styles.notAttendedButton,
+                    pressedNotAttendedId === student.id && { opacity: 0.5 },
+                  ]}>
+                  <Text style={styles.statusButtonText}>Not Attended</Text>
+                </View>
+              </TouchableWithoutFeedback>
+            )}
+        </View>
       </View>
     );
   };
@@ -236,25 +268,32 @@ export default function DashboardScreen() {
       let updateKey: keyof StudentStatus;
       let newVanStatus: Student['currentVanStatus'];
       let newOverallStatus: 'AT_HOME' | 'IN_VAN' | 'AT_SCHOOL';
+      let attendanceStatusUpdate: string | undefined;
 
       if (action === 'PICKUP') {
         updateKey = tripType === 'MORNING' ? 'morningPickup' : 'schoolPickup';
         newVanStatus = 'IN_VAN';
         newOverallStatus = 'IN_VAN';
-      } else {
+      } else if (action === 'DROPOFF') {
         updateKey = tripType === 'MORNING' ? 'schoolDropoff' : 'homeDropoff';
         newVanStatus = 'DROPPED_OFF';
         newOverallStatus = tripType === 'MORNING' ? 'AT_SCHOOL' : 'AT_HOME';
+      } else {
+        updateKey = tripType === 'MORNING' ? 'morningPickup' : 'schoolPickup';
+        newVanStatus = 'NOT_ATTENDED';
+        newOverallStatus = tripType === 'MORNING' ? 'AT_HOME' : 'AT_SCHOOL';
+        attendanceStatusUpdate = 'NOT_ATTENDED';
       }
 
       const updateData: Partial<StudentStatus> = {
         [updateKey]: {
-          status: 'COMPLETED',
+          status: action === 'NOT_ATTENDED' ? 'NOT_ATTENDED' : 'COMPLETED',
           time: locationData.time,
           location: locationData.location,
           tripId: currentTripId,
         },
         currentStatus: newOverallStatus,
+        ...(attendanceStatusUpdate ? { attendanceStatus: attendanceStatusUpdate } : {}),
       };
 
       const childStatusDocRef = doc(firestore, 'childStatus', childId, 'dates', date);
@@ -631,6 +670,7 @@ const styles = StyleSheet.create({
   studentInfo: { flex: 1 },
   studentName: { fontSize: 16, fontWeight: '600', color: theme.colors.text.primary },
   studentStatus: { fontSize: 12, color: theme.colors.text.secondary, marginTop: 2 },
+  actionButtonsColumn: { alignItems: 'flex-end' },
   statusButton: {
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
@@ -640,6 +680,7 @@ const styles = StyleSheet.create({
   },
   pickupButton: { backgroundColor: theme.colors.secondary },
   dropoffButton: { backgroundColor: theme.colors.warning },
+  notAttendedButton: { backgroundColor: theme.colors.error, marginTop: theme.spacing.xs },
   completeButton: { backgroundColor: theme.colors.border },
   statusButtonText: { color: theme.colors.surface, fontWeight: 'bold', fontSize: 12 },
 });
