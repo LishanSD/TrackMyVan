@@ -30,6 +30,7 @@ interface Child {
   grade: string;
   driverEmail: string;
   driverName: string;
+  driverPhone: string;
   status: 'pending' | 'approved' | 'rejected';
   homeLocation: Location;
   schoolLocation: Location;
