@@ -10,6 +10,7 @@ import {
   // TouchableOpacity removed
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 // Firestore Imports
@@ -214,6 +215,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 export default function DashboardScreen() {
   const { user } = useAuth();
   const { setTripData, endTrip: endTripContext, isActive, tripState } = useTrip();
+  const router = useRouter();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
@@ -477,7 +479,15 @@ export default function DashboardScreen() {
       setIsTripActive(false);
       setTripStatusText('No active trip');
 
-      Alert.alert('Trip Ended', 'Location tracking has stopped.');
+      Alert.alert('Trip Ended', 'Location tracking has stopped.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Navigate to Map tab so the driver immediately sees the completion overlay
+            router.push('/(tabs)/map');
+          },
+        },
+      ]);
     } catch (error) {
       console.error('Error ending trip:', error);
       Alert.alert('Error', 'Failed to stop trip tracking. Please check logs.');
