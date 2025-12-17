@@ -68,6 +68,23 @@ const statusColor = (status: Trip['status']) => {
   }
 };
 
+const getStudentStatusColor = (status: string) => {
+  switch (status) {
+    case 'DROPPED_OFF':
+      return theme.colors.success;
+    case 'PICKED_UP':
+      return theme.colors.primary;
+    case 'NOT_PICKED_UP':
+      return theme.colors.error;
+    default:
+      return theme.colors.text.secondary;
+  }
+};
+
+const formatStudentStatus = (status: string) => {
+  return status.replace(/_/g, ' ');
+};
+
 export default function TripsScreen() {
   const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -128,25 +145,31 @@ export default function TripsScreen() {
     });
   }, [pastTrips, search]);
 
-  const extractChildIds = (trip: Trip): string[] => {
+  const extractChildData = (trip: Trip): Array<{ childId: string; status: string }> => {
     if (!Array.isArray(trip.children)) return [];
     return trip.children
       .map((c: any) => {
-        if (typeof c === 'string') return c;
-        if (c && typeof c === 'object' && typeof c.childId === 'string') return c.childId;
-        if (c && typeof c === 'object' && typeof c.id === 'string') return c.id;
-        return '';
+        if (typeof c === 'string') return { childId: c, status: 'UNKNOWN' };
+        if (c && typeof c === 'object') {
+          const childId = c.childId || c.id || '';
+          const status = c.status || 'UNKNOWN';
+          return { childId, status };
+        }
+        return null;
       })
-      .filter((v) => typeof v === 'string' && v.length > 0);
+      .filter(
+        (v): v is { childId: string; status: string } =>
+          v !== null && typeof v.childId === 'string' && v.childId.length > 0
+      );
   };
 
   const loadTripStudents = useCallback(
-    async (trip: Trip, childIds?: string[]) => {
-      const ids = childIds ?? extractChildIds(trip);
-      if (!ids.length || studentsByTrip[trip.id]) return;
+    async (trip: Trip, childData: Array<{ childId: string; status: string }>) => {
+      const childIds = childData.map((cd) => cd.childId);
+      if (!childIds.length || studentsByTrip[trip.id]) return;
       setStudentsLoading((prev) => ({ ...prev, [trip.id]: true }));
       try {
-        const data = await fetchStudentsByIds(ids);
+        const data = await fetchStudentsByIds(childIds);
         setStudentsByTrip((prev) => ({ ...prev, [trip.id]: data }));
       } catch (e) {
         // noop; fallback messaging in UI
@@ -157,18 +180,18 @@ export default function TripsScreen() {
     [studentsByTrip]
   );
 
-  const onToggleExpand = (trip: Trip, childIds?: string[]) => {
+  const onToggleExpand = (trip: Trip, childData: Array<{ childId: string; status: string }>) => {
     const nextId = expandedTripId === trip.id ? null : trip.id;
     setExpandedTripId(nextId);
     if (nextId) {
-      loadTripStudents(trip, childIds);
+      loadTripStudents(trip, childData);
     }
   };
 
   const renderTrip = useCallback(
     ({ item }: { item: Trip }) => {
-      const childIds = extractChildIds(item);
-      const childrenCount = childIds.length;
+      const childData = extractChildData(item);
+      const childrenCount = childData.length;
       const isExpanded = expandedTripId === item.id;
       const studentList = studentsByTrip[item.id];
       const studentsAreLoading = studentsLoading[item.id];
@@ -177,9 +200,10 @@ export default function TripsScreen() {
           trip={item}
           isExpanded={isExpanded}
           childrenCount={childrenCount}
+          childData={childData}
           studentList={studentList}
           studentsAreLoading={!!studentsAreLoading}
-          onToggle={() => onToggleExpand(item, childIds)}
+          onToggle={() => onToggleExpand(item, childData)}
         />
       );
     },
@@ -255,6 +279,7 @@ type TripCardProps = {
   trip: Trip;
   isExpanded: boolean;
   childrenCount: number;
+  childData: Array<{ childId: string; status: string }>;
   studentList?: Student[];
   studentsAreLoading: boolean;
   onToggle: () => void;
@@ -265,10 +290,16 @@ const TripCard = React.memo(
     trip,
     isExpanded,
     childrenCount,
+    childData,
     studentList,
     studentsAreLoading,
     onToggle,
   }: TripCardProps) => {
+    const getStudentStatus = (studentId: string) => {
+      const child = childData.find((c) => c.childId === studentId);
+      return child?.status || 'UNKNOWN';
+    };
+
     return (
       <TouchableOpacity activeOpacity={0.85} onPress={onToggle}>
         <View style={[styles.card, isExpanded && styles.cardExpanded]}>
@@ -309,11 +340,21 @@ const TripCard = React.memo(
               {studentsAreLoading ? (
                 <Text style={styles.helperText}>Loading students...</Text>
               ) : studentList && studentList.length > 0 ? (
-                studentList.map((student) => (
-                  <Text key={student.id} style={styles.studentItem}>
-                    • {student.name ?? 'Unnamed'}
-                  </Text>
-                ))
+                studentList.map((student) => {
+                  const status = getStudentStatus(student.id);
+                  return (
+                    <View key={student.id} style={styles.studentRow}>
+                      <Text style={styles.studentName}>• {student.name ?? 'Unnamed'}</Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: getStudentStatusColor(status) },
+                        ]}>
+                        <Text style={styles.statusText}>{formatStudentStatus(status)}</Text>
+                      </View>
+                    </View>
+                  );
+                })
               ) : (
                 <Text style={styles.helperText}>
                   {childrenCount === 0 ? 'No students assigned' : 'Students not available'}
@@ -430,28 +471,34 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border,
     paddingTop: theme.spacing.sm,
   },
-  detailsTitle: {
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-    marginBottom: 6,
-  },
-  notes: {
-    marginTop: theme.spacing.xs,
-    padding: theme.spacing.sm,
-    backgroundColor: '#f3f4f6',
-    borderRadius: theme.borderRadius.md,
-  },
   notesLabel: {
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 8,
     color: theme.colors.text.primary,
   },
-  notesText: {
-    color: theme.colors.text.secondary,
+  studentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingVertical: 6,
   },
-  studentItem: {
+  studentName: {
     color: theme.colors.text.primary,
-    marginTop: 2,
+    fontSize: 15,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    marginLeft: 8,
+  },
+  statusText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   emptyState: {
     alignItems: 'center',
