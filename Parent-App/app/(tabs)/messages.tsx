@@ -247,6 +247,7 @@ export default function MessagesScreen() {
                       <TouchableOpacity
                         key={driverOption.driverId}
                         style={[styles.chip, isSelected && styles.chipSelected]}
+                        activeOpacity={1}
                         onPress={() =>
                           setSelectedTarget({
                             driverId: driverOption.driverId,
@@ -396,13 +397,8 @@ const styles = StyleSheet.create({
     minWidth: 140,
   },
   chipSelected: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: theme.colors.success,
+    borderColor: theme.colors.success,
   },
   avatarChip: {
     width: 36,
@@ -414,7 +410,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   avatarChipSelected: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   avatarChipImage: {
     width: 36,
@@ -423,8 +419,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   avatarChipImageSelected: {
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 0,
   },
   chipText: {
     fontSize: 14,

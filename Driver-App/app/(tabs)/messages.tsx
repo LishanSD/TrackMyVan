@@ -285,7 +285,7 @@ export default function MessagesScreen() {
                       <TouchableOpacity
                         key={parentOption.parentId}
                         style={[styles.chip, isSelected && styles.chipSelected]}
-                        activeOpacity={isSelected ? 1 : 0.7}
+                        activeOpacity={1}
                         onPress={() =>
                           setSelectedTarget({
                             parentId: parentOption.parentId,
@@ -483,8 +483,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   chipSelected: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.success,
+    borderColor: theme.colors.success,
   },
   avatarChip: {
     width: 28,
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   avatarChipSelected: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   avatarChipImage: {
     width: 28,
@@ -505,8 +505,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   avatarChipImageSelected: {
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 0,
   },
   avatarText: {
     fontSize: 12,
