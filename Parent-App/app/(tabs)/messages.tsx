@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
@@ -21,6 +22,15 @@ import {
 } from '../../src/services/messageService';
 import { Message, Student } from '../../src/types/types';
 import { theme } from '../../src/theme/theme';
+import { firestore } from '../../src/config/firebaseConfig';
+import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
+
+interface DriverOption {
+  driverId: string;
+  driverName: string;
+  driverProfilePic?: string;
+  students: Student[];
+}
 
 interface ConversationTarget {
   driverId: string;
@@ -57,15 +67,79 @@ export default function MessagesScreen() {
     return () => unsubscribe();
   }, [parentId]);
 
-  // Build unique list of drivers based on students
-  const driverOptions = useMemo(() => {
-    const map = new Map<string, Student>();
-    students.forEach((s) => {
-      if (s.driverId && !map.has(s.driverId)) {
-        map.set(s.driverId, s);
-      }
-    });
-    return Array.from(map.values());
+  const [driverOptions, setDriverOptions] = useState<DriverOption[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
+
+  // Fetch driver data and group students by driver
+  useEffect(() => {
+    if (students.length === 0) {
+      setDriverOptions([]);
+      return;
+    }
+
+    const fetchDriverData = async () => {
+      setLoadingDrivers(true);
+      const driverMap = new Map<
+        string,
+        { driverName: string; driverProfilePic?: string; students: Student[] }
+      >();
+
+      // Group students by driver
+      students.forEach((student) => {
+        if (student.driverId) {
+          if (!driverMap.has(student.driverId)) {
+            driverMap.set(student.driverId, {
+              driverName: student.driverName || 'Driver',
+              driverProfilePic: undefined,
+              students: [],
+            });
+          }
+          driverMap.get(student.driverId)!.students.push(student);
+        }
+      });
+
+      // Fetch driver profile pics
+      const driverPromises = Array.from(driverMap.entries()).map(async ([driverId, data]) => {
+        try {
+          const driverRef = doc(firestore, 'drivers', driverId);
+          let driverDoc;
+
+          // Try to get from server first
+          try {
+            driverDoc = await getDoc(driverRef);
+          } catch (error: any) {
+            // If offline, try to get from cache
+            if (error.code === 'unavailable' || error.message?.includes('offline')) {
+              try {
+                driverDoc = await getDocFromCache(driverRef);
+              } catch (cacheError) {
+                // If not in cache either, just use the data we have
+                return { driverId, ...data };
+              }
+            } else {
+              // Other errors, just use the data we have
+              return { driverId, ...data };
+            }
+          }
+
+          if (driverDoc.exists()) {
+            const driverData = driverDoc.data();
+            data.driverName = driverData.name || data.driverName;
+            data.driverProfilePic = driverData.profilePic;
+          }
+        } catch (error) {
+          // Silently fail - we'll use the data from students
+          // Don't log errors for offline scenarios
+        }
+        return { driverId, ...data };
+      });
+
+      const driverOptionsData = await Promise.all(driverPromises);
+      setDriverOptions(driverOptionsData);
+      setLoadingDrivers(false);
+    };
+
+    fetchDriverData();
   }, [students]);
 
   // Subscribe to messages for selected driver
@@ -150,7 +224,7 @@ export default function MessagesScreen() {
                 <Text style={styles.sectionTitle}>Select Driver</Text>
               </View>
 
-              {loadingStudents ? (
+              {loadingStudents || loadingDrivers ? (
                 <View style={styles.centerRow}>
                   <ActivityIndicator color={theme.colors.primary} />
                   <Text style={styles.mutedText}>Loading drivers...</Text>
@@ -166,31 +240,43 @@ export default function MessagesScreen() {
                   showsHorizontalScrollIndicator={false}
                   style={styles.chipScroll}
                   contentContainerStyle={styles.chipScrollContent}>
-                  {driverOptions.map((student) => {
-                    const isSelected = selectedTarget?.driverId === student.driverId;
+                  {driverOptions.map((driverOption) => {
+                    const isSelected = selectedTarget?.driverId === driverOption.driverId;
+                    const studentNames = driverOption.students.map((s) => s.name).join(', ');
                     return (
                       <TouchableOpacity
-                        key={student.driverId}
+                        key={driverOption.driverId}
                         style={[styles.chip, isSelected && styles.chipSelected]}
                         onPress={() =>
                           setSelectedTarget({
-                            driverId: student.driverId!,
-                            student,
+                            driverId: driverOption.driverId,
+                            student: driverOption.students[0],
                           })
                         }>
-                        <View style={[styles.avatarChip, isSelected && styles.avatarChipSelected]}>
-                          <Ionicons
-                            name="person"
-                            size={14}
-                            color={isSelected ? '#FFFFFF' : '#6B7280'}
+                        {driverOption.driverProfilePic ? (
+                          <Image
+                            source={{ uri: driverOption.driverProfilePic }}
+                            style={[
+                              styles.avatarChipImage,
+                              isSelected && styles.avatarChipImageSelected,
+                            ]}
                           />
-                        </View>
+                        ) : (
+                          <View
+                            style={[styles.avatarChip, isSelected && styles.avatarChipSelected]}>
+                            <Ionicons
+                              name="person"
+                              size={14}
+                              color={isSelected ? '#FFFFFF' : '#6B7280'}
+                            />
+                          </View>
+                        )}
                         <View>
                           <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                            {student.driverName || 'Driver'}
+                            {driverOption.driverName}
                           </Text>
                           <Text style={[styles.chipSubtext, isSelected && styles.textWhiteAlpha]}>
-                            For: {student.name}
+                            ({studentNames})
                           </Text>
                         </View>
                       </TouchableOpacity>
@@ -329,6 +415,16 @@ const styles = StyleSheet.create({
   },
   avatarChipSelected: {
     backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  avatarChipImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
+  },
+  avatarChipImageSelected: {
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   chipText: {
     fontSize: 14,
