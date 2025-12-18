@@ -34,13 +34,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 import { TripType, ChildActionEvent, StudentStatus, Student } from '../../src/types/types';
 
-import {
-  startBackgroundLocation,
-  stopBackgroundLocation,
-  isBackgroundLocationActive,
-  LOCATION_TASK_NAME, // Just importing to check usage if needed, or remove if unused
-} from '../../src/services/locationService';
+const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
 
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+  if (error) {
+    console.error('Location Task Error:', error.message);
+    return;
+  }
+  if (data) {
+    const { locations } = data as { locations: Location.LocationObject[] };
+    const latestLocation = locations[0];
+    const driverId = await AsyncStorage.getItem('driverId');
+
+    if (!driverId) {
+      console.error('Driver ID not found. Stopping updates.');
+      return;
+    }
+
+    try {
+      const vanLocationRef = ref(database, `locations/${driverId}`);
+      const locationData = {
+        lat: latestLocation.coords.latitude,
+        lng: latestLocation.coords.longitude,
+        speed: latestLocation.coords.speed || 0,
+        bearing: latestLocation.coords.heading || 0,
+        timestamp: Date.now(),
+      };
+      await set(vanLocationRef, locationData);
+    } catch (e) {
+      console.error('Error sending location to Realtime DB:', e);
+    }
+  }
+});
 
 interface StudentListProps {
   students: Student[];
@@ -187,7 +212,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 
 export default function DashboardScreen() {
   const { user, userProfile } = useAuth();
-  const { setTripData, endTrip: endTripContext, signalStatus } = useTrip();
+  const { setTripData, endTrip: endTripContext } = useTrip();
   const router = useRouter();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
@@ -417,8 +442,17 @@ export default function DashboardScreen() {
 
       setTripData(tripId, tripType, optimizedRoute);
 
-      await startBackgroundLocation();
-
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.BestForNavigation,
+        distanceInterval: 10,
+        timeInterval: 5000,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: 'Van Tracking Active',
+          notificationBody: 'Your location is being shared with parents.',
+          notificationColor: theme.colors.primary,
+        },
+      });
 
       setIsTripActive(true);
       setTripStatusText(`Trip IN_PROGRESS: ${tripType}`);
@@ -436,8 +470,8 @@ export default function DashboardScreen() {
   const handleEndTrip = async () => {
     if (!driverId || !currentTripId) return;
     try {
-      if (await isBackgroundLocationActive()) {
-        await stopBackgroundLocation();
+      if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
       }
 
       await updateDoc(doc(firestore, 'trips', currentTripId), {
@@ -524,29 +558,9 @@ export default function DashboardScreen() {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
-            <View style={styles.statusRow}>
-              <Text style={[styles.cardText, { color: tripStatusColor, flex: 1, marginRight: 8 }]}>
-                {tripStatusText.replace(/_/g, ' ').toLowerCase()}
-              </Text>
-              {isTripActive && (
-                <View style={styles.signalContainer}>
-                  <View
-                    style={[
-                      styles.signalDot,
-                      {
-                        backgroundColor:
-                          signalStatus === 'GOOD'
-                            ? theme.colors.success
-                            : signalStatus === 'WEAK'
-                              ? theme.colors.warning
-                              : theme.colors.error,
-                      },
-                    ]}
-                  />
-                  <Text style={styles.signalText}>GPS: {signalStatus}</Text>
-                </View>
-              )}
-            </View>
+            <Text style={[styles.cardText, { color: tripStatusColor }]}>
+              {tripStatusText.replace(/_/g, ' ').toLowerCase()}
+            </Text>
           </View>
 
           {!isTripActive && (
@@ -683,30 +697,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'capitalize',
   },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  signalContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  signalDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  signalText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4B5563',
-  },
   tripTypeContainer: {
     marginBottom: 24,
   },
@@ -808,39 +798,40 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
   },
   studentInfo: {
-    flex: 1,
-    paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  studentInfoText: {
     flex: 1,
   },
   studentAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#F3F4F6',
   },
   studentAvatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.primary + '20',
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
   studentAvatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4B5563',
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  studentInfoText: {
+    flex: 1,
   },
   studentName: {
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   studentStatus: {
     fontSize: 12,
@@ -848,42 +839,39 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   statusValue: {
+    fontWeight: '700',
+    color: '#374151',
     textTransform: 'capitalize',
-    fontWeight: '600',
-    color: '#4B5563',
   },
   actionButtonsColumn: {
-    alignItems: 'flex-end',
+    flexDirection: 'column',
     gap: 8,
   },
   statusButton: {
-    paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderRadius: 10,
     minWidth: 100,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   pickupButton: {
-    backgroundColor: theme.colors.secondary,
+    backgroundColor: theme.colors.primary,
   },
   dropoffButton: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: theme.colors.primary,
   },
   notAttendedButton: {
-    backgroundColor: '#EF4444', // Bolder Red as requested
+    backgroundColor: '#FECACA', // Light red
   },
   completeButton: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: '#E5E7EB',
+  },
+  pressedOpacity: {
+    opacity: 0.7,
   },
   statusButtonText: {
     color: '#FFFFFF',
-    fontWeight: '700',
     fontSize: 12,
-  },
-  pressedOpacity: {
-    opacity: 0.6,
+    fontWeight: '700',
   },
 });

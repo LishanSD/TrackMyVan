@@ -14,8 +14,6 @@ interface TrackingMapProps {
   loading?: boolean;
   error?: string | null;
   routeGeometry?: RouteGeometry | null;
-  isStale?: boolean;
-  formattedLastUpdate?: string;
 }
 
 export const TrackingMap: React.FC<TrackingMapProps> = ({
@@ -26,8 +24,6 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
   loading = false,
   error = null,
   routeGeometry = null,
-  isStale = false,
-  formattedLastUpdate = '',
 }) => {
   const mapRef = useRef<MapView>(null);
 
@@ -151,25 +147,13 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
               longitude: driverLocation.lng,
             }}
             title="School Van"
-            description={isStale ? `Last active ${formattedLastUpdate}` : 'Live Location'}
+            description="Live Location"
             rotation={driverLocation.bearing}
-            anchor={{ x: 0.5, y: 0.5 }}
-            opacity={isStale ? 0.6 : 1.0}
-          >
+            anchor={{ x: 0.5, y: 0.5 }}>
             <View style={styles.vanMarkerContainer}>
-              <View
-                style={[
-                  styles.vanMarkerRing,
-                  isStale && { backgroundColor: 'rgba(107, 114, 128, 0.3)' },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.vanMarkerCore,
-                    isStale && { backgroundColor: '#6B7280', borderColor: '#F3F4F6' },
-                  ]}
-                >
-                  <Ionicons name={isStale ? "cloud-offline" : "bus"} size={18} color="#FFFFFF" />
+              <View style={styles.vanMarkerRing}>
+                <View style={styles.vanMarkerCore}>
+                  <Ionicons name="bus" size={18} color="#FFFFFF" />
                 </View>
               </View>
             </View>
@@ -193,10 +177,10 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
         </View>
         {driverLocation && (
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: isStale ? '#6B7280' : '#F59E0B' }]}>
-              <Ionicons name={isStale ? "cloud-offline" : "bus"} size={10} color="#FFFFFF" />
+            <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]}>
+              <Ionicons name="bus" size={10} color="#FFFFFF" />
             </View>
-            <Text style={styles.legendText}>{isStale ? 'Offline' : 'Van'}</Text>
+            <Text style={styles.legendText}>Van</Text>
           </View>
         )}
       </View>
