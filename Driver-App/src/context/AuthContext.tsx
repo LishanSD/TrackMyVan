@@ -6,6 +6,9 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile as updateAuthProfile,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword as firebaseUpdatePassword,
 } from 'firebase/auth';
 import { auth, firestore, storage } from '../config/firebaseConfig';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -21,6 +24,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
   uploadProfilePicture: (uri: string) => Promise<string>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -32,6 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   updateUserProfile: async () => {},
   uploadProfilePicture: async () => '',
+  changePassword: async () => {},
 });
 
 export const useAuth = () => {
@@ -189,6 +194,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    if (!user || !user.email) {
+      throw new Error('User must be logged in to change password');
+    }
+
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await firebaseUpdatePassword(user, newPassword);
+    } catch (error: any) {
+      if (error.code === 'auth/wrong-password') {
+        throw new Error('Incorrect current password');
+      }
+      throw new Error(`Failed to change password: ${error.message}`);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -200,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         updateUserProfile,
         uploadProfilePicture,
+        changePassword,
       }}>
       {children}
     </AuthContext.Provider>
