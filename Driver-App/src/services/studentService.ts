@@ -6,6 +6,7 @@ import {
   doc,
   updateDoc,
   getDocs,
+  deleteDoc,
   Unsubscribe,
 } from 'firebase/firestore';
 import { firestore } from '../config/firebaseConfig';
@@ -55,6 +56,16 @@ export const rejectStudent = async (studentId: string) => {
   await updateDoc(doc(firestore, 'students', studentId), {
     status: 'rejected',
     rejectedAt: new Date().toISOString(),
+  });
+};
+
+export const unassignStudent = async (studentId: string) => {
+  await updateDoc(doc(firestore, 'students', studentId), {
+    driverId: null,
+    driverName: null,
+    driverEmail: null,
+    driverPhone: null,
+    status: 'pending', // Reverts to pending state, effectively unassigned
   });
 };
 

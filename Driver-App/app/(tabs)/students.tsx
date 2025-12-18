@@ -23,9 +23,34 @@ import AttendanceHistory from '../../src/components/AttendanceHistory';
 import {
   approveStudent,
   rejectStudent,
+  unassignStudent,
   subscribeToDriverStudents,
   fetchAttendanceHistory,
 } from '../../src/services/studentService';
+
+// ... inside component
+
+  const handleRemove = async (studentId: string) => {
+    Alert.alert(
+      'Unassign Student',
+      'Are you sure you want to stop driving for this student? They will be removed from your list.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await unassignStudent(studentId);
+              Alert.alert('Success', 'Student unassigned successfully');
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
 
 const { width } = Dimensions.get('window');
 
@@ -84,6 +109,28 @@ export default function StudentsScreen() {
         },
       },
     ]);
+  };
+
+  const handleRemove = async (studentId: string) => {
+    Alert.alert(
+      'Unassign Student',
+      'Are you sure you want to stop driving for this student? They will be removed from your list.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await unassignStudent(studentId);
+              Alert.alert('Success', 'Student unassigned successfully');
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const viewStudentDetails = (student: Student) => {
@@ -274,6 +321,7 @@ export default function StudentsScreen() {
               onPress={viewStudentDetails}
               onApprove={handleApprove}
               onReject={handleReject}
+              onRemove={handleRemove}
             />
           ))
         )}

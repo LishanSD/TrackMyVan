@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Student, ChildStatus } from '../types/types';
 import { theme } from '../theme/theme';
 
@@ -94,17 +94,17 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
 
   const formatTime = (timestamp?: number | { seconds: number; nanoseconds?: number }): string => {
     if (!timestamp) return '--:--';
-    
+
     let timeInMillis: number;
     if (typeof timestamp === 'number') {
       timeInMillis = timestamp;
     } else if (typeof timestamp === 'object' && 'seconds' in timestamp) {
       // Handle Firestore timestamp format
-      timeInMillis = timestamp.seconds * 1000 + ((timestamp.nanoseconds ?? 0) / 1_000_000);
+      timeInMillis = timestamp.seconds * 1000 + (timestamp.nanoseconds ?? 0) / 1_000_000;
     } else {
       return '--:--';
     }
-    
+
     if (timeInMillis <= 0 || isNaN(timeInMillis)) return '--:--';
     const date = new Date(timeInMillis);
     if (isNaN(date.getTime())) return '--:--';
@@ -133,9 +133,13 @@ export const StudentCard: React.FC<StudentCardProps> = ({ student, childStatus, 
       disabled={!canTrack}>
       <View style={styles.header}>
         <View style={styles.leftSection}>
-          <View style={[styles.avatarContainer, { backgroundColor: statusColor + '10' }]}>
-            <Text style={styles.avatarEmoji}>{getStatusIcon()}</Text>
-          </View>
+          {student.profilePic ? (
+            <Image source={{ uri: student.profilePic }} style={styles.avatarImage} />
+          ) : (
+            <View style={[styles.avatarContainer, { backgroundColor: statusColor + '10' }]}>
+              <Text style={styles.avatarEmoji}>{getStatusIcon()}</Text>
+            </View>
+          )}
           <View style={styles.headerInfo}>
             <Text style={styles.studentName} numberOfLines={1}>
               {student.name}
@@ -233,6 +237,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 14,
+  },
+  avatarImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     marginRight: 14,
   },
   avatarEmoji: {

@@ -5,7 +5,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  updateProfile,
+  updateProfile as updateAuthProfile,
 } from 'firebase/auth';
 import { auth, firestore, storage } from '../config/firebaseConfig';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -19,7 +19,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string, phone: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
   uploadProfilePicture: (uri: string) => Promise<string>;
 }
 
@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signIn: async () => {},
   logout: async () => {},
-  updateProfile: async () => {},
+  updateUserProfile: async () => {},
   uploadProfilePicture: async () => '',
 });
 
@@ -79,8 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Update user profile with name
-      await updateProfile(user, { displayName: name });
+      // Update Firebase Auth profile with name
+      await updateAuthProfile(user, { displayName: name });
 
       // Store additional driver info in Firestore
       const profileData: UserProfile = {
@@ -167,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfile = async (updates: Partial<UserProfile>) => {
+  const updateUserProfile = async (updates: Partial<UserProfile>) => {
     if (!user) {
       throw new Error('User must be logged in to update profile');
     }
@@ -178,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Update Firebase Auth displayName if name is being updated
       if (updates.name && user) {
-        await updateProfile(user, { displayName: updates.name });
+        await updateAuthProfile(user, { displayName: updates.name });
       }
 
       // Update local state
@@ -190,7 +190,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, signUp, signIn, logout, updateProfile, uploadProfilePicture }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        userProfile,
+        loading,
+        signUp,
+        signIn,
+        logout,
+        updateUserProfile,
+        uploadProfilePicture,
+      }}>
       {children}
     </AuthContext.Provider>
   );

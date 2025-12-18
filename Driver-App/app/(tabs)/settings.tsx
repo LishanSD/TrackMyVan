@@ -19,7 +19,7 @@ import { theme } from '../../src/theme/theme';
 const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
-  const { user, userProfile, logout, updateProfile, uploadProfilePicture } = useAuth();
+  const { user, userProfile, logout, updateUserProfile, uploadProfilePicture } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -99,18 +99,16 @@ export default function SettingsScreen() {
 
     setSaving(true);
     try {
-      let profilePicUrl = formData.profilePic;
+      const profilePicUrl = selectedImage 
+        ? await uploadProfilePicture(selectedImage)
+        : (formData.profilePic || null);
 
-      if (selectedImage) {
-        profilePicUrl = await uploadProfilePicture(selectedImage);
-      }
-
-      await updateProfile({
+      await updateUserProfile({
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         vanModel: formData.vanModel.trim() || undefined,
         licensePlateNo: formData.licensePlateNo.trim() || undefined,
-        profilePic: profilePicUrl || undefined,
+        profilePic: profilePicUrl,
       });
 
       Alert.alert('Success', 'Profile updated successfully');
@@ -189,7 +187,13 @@ export default function SettingsScreen() {
           </Text>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={handleEditProfile}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -213,7 +217,13 @@ export default function SettingsScreen() {
           <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -281,6 +291,16 @@ export default function SettingsScreen() {
                     <Text style={styles.editBadgeText}>✎</Text>
                   </View>
                 </TouchableOpacity>
+                {(selectedImage || formData.profilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setFormData({ ...formData, profilePic: '' });
+                      setSelectedImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -503,12 +523,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.6,
   },
+  removePhotoButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+  },
+  removePhotoButtonText: {
+    color: theme.colors.error,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   cardButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 14,
-    borderBottomWidth: 1,
   },
   buttonText: {
     fontSize: 16,

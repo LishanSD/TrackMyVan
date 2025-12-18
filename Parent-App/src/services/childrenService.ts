@@ -1,5 +1,5 @@
 import { firestore } from '../config/firebaseConfig';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { Student } from '../types/types';
 
 /**
@@ -66,4 +66,12 @@ export const subscribeToParentStudents = (
     }
     return () => {};
   }
+};
+
+/**
+ * Delete a child profile
+ * @param childId - The child's ID
+ */
+export const deleteChild = async (childId: string) => {
+  await deleteDoc(doc(firestore, 'students', childId));
 };

@@ -10,14 +10,27 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../src/context/AuthContext';
-import { firestore } from '../../src/config/firebaseConfig';
-import { collection, addDoc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { firestore, storage } from '../../src/config/firebaseConfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+  updateDoc,
+  doc,
+} from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
 import { ChildStatus, PickupStatus } from '../../src/types/types';
+import { deleteChild } from '../../src/services/childrenService';
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +51,7 @@ interface Child {
   status: 'pending' | 'approved' | 'rejected';
   homeLocation: Location;
   schoolLocation: Location;
+  profilePic?: string;
   createdAt: string;
 }
 
@@ -57,6 +71,8 @@ export default function ChildrenScreen() {
   const [childGrade, setChildGrade] = useState('');
   const [homeLocation, setHomeLocation] = useState<Location | null>(null);
   const [schoolLocation, setSchoolLocation] = useState<Location | null>(null);
+  const [childProfilePic, setChildProfilePic] = useState<string | null>(null);
+  const [selectedChildImage, setSelectedChildImage] = useState<string | null>(null);
 
   const [mapModalVisible, setMapModalVisible] = useState(false);
   const [selectingLocation, setSelectingLocation] = useState<LocationType>(null);
@@ -67,6 +83,20 @@ export default function ChildrenScreen() {
   const [attendanceHistory, setAttendanceHistory] = useState<ChildStatus[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
+
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingChild, setEditingChild] = useState<Child | null>(null);
+  const [editChildName, setEditChildName] = useState('');
+  const [editChildAge, setEditChildAge] = useState('');
+  const [editChildGrade, setEditChildGrade] = useState('');
+  const [editHomeLocation, setEditHomeLocation] = useState<Location | null>(null);
+  const [editSchoolLocation, setEditSchoolLocation] = useState<Location | null>(null);
+  const [editingLocation, setEditingLocation] = useState<LocationType>(null);
+  const [editMapModalVisible, setEditMapModalVisible] = useState(false);
+  const [editTempMarker, setEditTempMarker] = useState<Location | null>(null);
+  const [updatingChild, setUpdatingChild] = useState(false);
+  const [editChildProfilePic, setEditChildProfilePic] = useState<string | null>(null);
+  const [selectedEditImage, setSelectedEditImage] = useState<string | null>(null);
 
   const defaultRegion = {
     latitude: 6.9271,
@@ -141,6 +171,89 @@ export default function ChildrenScreen() {
     setTempMarker({ latitude, longitude });
   };
 
+  const pickChildImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission needed',
+        'We need camera roll permissions to upload profile pictures.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedChildImage(result.assets[0].uri);
+    }
+  };
+
+  const pickEditChildImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission needed',
+        'We need camera roll permissions to upload profile pictures.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedEditImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadChildProfilePicture = async (uri: string, childId?: string): Promise<string> => {
+    if (!user) {
+      throw new Error('User must be logged in to upload profile picture');
+    }
+
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Validate file size (5MB limit)
+      if (blob.size > 5 * 1024 * 1024) {
+        throw new Error('Image size must be less than 5MB');
+      }
+
+      // Validate file type
+      if (!blob.type.startsWith('image/')) {
+        throw new Error('File must be an image');
+      }
+
+      const filename = `child-profile-pics/${childId || 'new'}_${user.uid}_${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+
+      // Upload with metadata
+      await uploadBytes(storageRef, blob, {
+        contentType: blob.type || 'image/jpeg',
+        customMetadata: {
+          uploadedBy: user.uid,
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+
+      const downloadURL = await getDownloadURL(storageRef);
+
+      return downloadURL;
+    } catch (error: any) {
+      throw new Error(`Failed to upload profile picture: ${error.message}`);
+    }
+  };
+
   const addChild = async () => {
     if (!childName.trim() || !childAge.trim() || !childGrade.trim()) {
       Alert.alert('Error', 'Please fill all fields');
@@ -155,6 +268,12 @@ export default function ChildrenScreen() {
       return;
     }
     try {
+      let profilePicUrl = childProfilePic || undefined;
+
+      if (selectedChildImage) {
+        profilePicUrl = await uploadChildProfilePicture(selectedChildImage);
+      }
+
       await addDoc(collection(firestore, 'students'), {
         name: childName.trim(),
         age: childAge.trim(),
@@ -170,6 +289,7 @@ export default function ChildrenScreen() {
         homeLocation,
         schoolLocation,
         status: 'pending',
+        profilePic: profilePicUrl || null,
         createdAt: new Date().toISOString(),
       });
       Alert.alert('Success', 'Child added successfully. Waiting for driver approval.');
@@ -188,6 +308,8 @@ export default function ChildrenScreen() {
     setDriverFound(null);
     setHomeLocation(null);
     setSchoolLocation(null);
+    setChildProfilePic(null);
+    setSelectedChildImage(null);
   };
 
   const viewChildDetails = (child: Child) => {
@@ -195,6 +317,92 @@ export default function ChildrenScreen() {
     setAttendanceHistory([]);
     setAttendanceError(null);
     setDetailModalVisible(true);
+  };
+
+  const openEditModal = (child: Child) => {
+    setEditingChild(child);
+    setEditChildName(child.name);
+    setEditChildAge(child.age);
+    setEditChildGrade(child.grade);
+    setEditHomeLocation(child.homeLocation);
+    setEditSchoolLocation(child.schoolLocation);
+    setEditChildProfilePic(child.profilePic || null);
+    setSelectedEditImage(null);
+    setDetailModalVisible(false);
+    setEditModalVisible(true);
+  };
+
+  const openEditLocationPicker = (type: LocationType) => {
+    setEditingLocation(type);
+    const currentLocation = type === 'home' ? editHomeLocation : editSchoolLocation;
+    setEditTempMarker(currentLocation);
+    setEditMapModalVisible(true);
+  };
+
+  const confirmEditLocation = () => {
+    if (!editTempMarker) {
+      Alert.alert('Error', 'Please select a location on the map');
+      return;
+    }
+    if (editingLocation === 'home') setEditHomeLocation(editTempMarker);
+    else if (editingLocation === 'school') setEditSchoolLocation(editTempMarker);
+    setEditMapModalVisible(false);
+    setEditTempMarker(null);
+  };
+
+  const handleEditMapPress = (event: any) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    setEditTempMarker({ latitude, longitude });
+  };
+
+  const updateChild = async () => {
+    if (!editingChild) return;
+    if (!editChildName.trim() || !editChildAge.trim() || !editChildGrade.trim()) {
+      Alert.alert('Error', 'Please fill all fields');
+      return;
+    }
+    if (!editHomeLocation || !editSchoolLocation) {
+      Alert.alert('Error', 'Please select both home and school locations');
+      return;
+    }
+    setUpdatingChild(true);
+    try {
+      let profilePicUrl = editChildProfilePic || undefined;
+
+      if (selectedEditImage) {
+        profilePicUrl = await uploadChildProfilePicture(selectedEditImage, editingChild.id);
+      }
+
+      const childRef = doc(firestore, 'students', editingChild.id);
+      await updateDoc(childRef, {
+        name: editChildName.trim(),
+        age: editChildAge.trim(),
+        grade: editChildGrade.trim(),
+        homeLocation: editHomeLocation,
+        schoolLocation: editSchoolLocation,
+        profilePic: profilePicUrl || null,
+      });
+      Alert.alert('Success', 'Child information updated successfully');
+      setEditModalVisible(false);
+      resetEditForm();
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setUpdatingChild(false);
+    }
+  };
+
+  const resetEditForm = () => {
+    setEditingChild(null);
+    setEditChildName('');
+    setEditChildAge('');
+    setEditChildGrade('');
+    setEditHomeLocation(null);
+    setEditSchoolLocation(null);
+    setEditingLocation(null);
+    setEditTempMarker(null);
+    setEditChildProfilePic(null);
+    setSelectedEditImage(null);
   };
 
   const getCurrentStatusColor = (status: ChildStatus['currentStatus']) => {
@@ -283,6 +491,32 @@ export default function ChildrenScreen() {
     };
   }, [detailModalVisible, selectedChild]);
 
+  const handleRemoveChild = () => {
+    if (!selectedChild) return;
+
+    Alert.alert(
+      'Remove Child',
+      'Are you sure you want to remove this child? This action cannot be undone and you will lose all tracking history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteChild(selectedChild.id);
+              Alert.alert('Success', 'Child removed successfully');
+              setDetailModalVisible(false);
+              setSelectedChild(null);
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
@@ -334,7 +568,16 @@ export default function ChildrenScreen() {
                 onPress={() => viewChildDetails(child)}
                 activeOpacity={0.8}>
                 <View style={styles.cardHeader}>
-                  <Text style={styles.childName}>{child.name}</Text>
+                  <View style={styles.cardHeaderLeft}>
+                    {child.profilePic ? (
+                      <Image source={{ uri: child.profilePic }} style={styles.childAvatar} />
+                    ) : (
+                      <View style={styles.childAvatarPlaceholder}>
+                        <Text style={styles.childAvatarText}>{child.name.charAt(0)}</Text>
+                      </View>
+                    )}
+                    <Text style={styles.childName}>{child.name}</Text>
+                  </View>
                   <View
                     style={[
                       styles.statusBadge,
@@ -389,6 +632,38 @@ export default function ChildrenScreen() {
             <View style={styles.modalHandle} />
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>Add Child</Text>
+
+              <View style={styles.profilePicEditContainer}>
+                <TouchableOpacity
+                  onPress={pickChildImage}
+                  style={styles.profilePicEditButton}
+                  activeOpacity={0.9}>
+                  {selectedChildImage || childProfilePic ? (
+                    <Image
+                      source={{ uri: selectedChildImage || childProfilePic || '' }}
+                      style={styles.profilePicEdit}
+                    />
+                  ) : (
+                    <View style={styles.profilePicPlaceholder}>
+                      <Text style={styles.profilePicPlaceholderText}>📷</Text>
+                      <Text style={styles.profilePicPlaceholderLabel}>Add Photo</Text>
+                    </View>
+                  )}
+                  <View style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}>
+                    <Text style={styles.editBadgeText}>✎</Text>
+                  </View>
+                </TouchableOpacity>
+                {(selectedChildImage || childProfilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setChildProfilePic(null);
+                      setSelectedChildImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               <Text style={styles.sectionHeading}>1. Driver Assignment</Text>
               <View style={styles.searchWrapper}>
@@ -531,15 +806,36 @@ export default function ChildrenScreen() {
         onRequestClose={() => setDetailModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.detailSheet}>
+            <TouchableOpacity 
+              onPress={() => setDetailModalVisible(false)} 
+              style={styles.floatingCloseButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.closeX}>✕</Text>
+            </TouchableOpacity>
             <View style={styles.modalHandle} />
             <ScrollView showsVerticalScrollIndicator={false}>
               {selectedChild && (
                 <>
-                  <View style={styles.detailHeaderRow}>
-                    <Text style={styles.detailSheetTitle}>{selectedChild.name}</Text>
-                    <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
-                      <Text style={styles.closeX}>✕</Text>
-                    </TouchableOpacity>
+                  <View style={styles.detailHeaderContainer}>
+                    <View style={styles.detailTopRow}>
+                      <Text style={styles.detailSheetTitle}>{selectedChild.name}</Text>
+                    </View>
+
+                    <View style={styles.detailActionRow}>
+                      <TouchableOpacity
+                        style={[styles.editButton, { flex: 1, alignItems: 'center' }]}
+                        onPress={() => openEditModal(selectedChild)}
+                        activeOpacity={0.7}>
+                        <Text style={styles.editButtonText}>Edit Child</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.editButton, { flex: 1, backgroundColor: '#FEE2E2', alignItems: 'center' }]}
+                        onPress={handleRemoveChild}
+                        activeOpacity={0.7}>
+                        <Text style={[styles.editButtonText, { color: theme.colors.error }]}>Remove Child</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <Text style={styles.logHeading}>ATTENDANCE LOG</Text>
@@ -630,6 +926,164 @@ export default function ChildrenScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          resetEditForm();
+          setEditModalVisible(false);
+        }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Edit Child</Text>
+
+              <View style={styles.profilePicEditContainer}>
+                <TouchableOpacity
+                  onPress={pickEditChildImage}
+                  style={styles.profilePicEditButton}
+                  activeOpacity={0.9}>
+                  {selectedEditImage || editChildProfilePic ? (
+                    <Image
+                      source={{ uri: selectedEditImage || editChildProfilePic || '' }}
+                      style={styles.profilePicEdit}
+                    />
+                  ) : (
+                    <View style={styles.profilePicPlaceholder}>
+                      <Text style={styles.profilePicPlaceholderText}>📷</Text>
+                      <Text style={styles.profilePicPlaceholderLabel}>Add Photo</Text>
+                    </View>
+                  )}
+                  <View style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}>
+                    <Text style={styles.editBadgeText}>✎</Text>
+                  </View>
+                </TouchableOpacity>
+                {(selectedEditImage || editChildProfilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setEditChildProfilePic(null);
+                      setSelectedEditImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text style={styles.sectionHeading}>Student Profile</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Full Name"
+                value={editChildName}
+                onChangeText={setEditChildName}
+              />
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginRight: 8 }]}
+                  placeholder="Age"
+                  value={editChildAge}
+                  onChangeText={setEditChildAge}
+                  keyboardType="numeric"
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Grade"
+                  value={editChildGrade}
+                  onChangeText={setEditChildGrade}
+                />
+              </View>
+
+              <Text style={styles.sectionHeading}>Update Locations</Text>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => openEditLocationPicker('home')}>
+                <Text style={styles.pickerLabel}>🏠 Home Location</Text>
+                <Text style={styles.pickerValue}>
+                  {editHomeLocation ? 'Location Locked' : 'Select on map'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => openEditLocationPicker('school')}>
+                <Text style={styles.pickerLabel}>🏫 School Location</Text>
+                <Text style={styles.pickerValue}>
+                  {editSchoolLocation ? 'Location Locked' : 'Select on map'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.formActions}>
+                <TouchableOpacity
+                  style={styles.btnSecondary}
+                  onPress={() => {
+                    resetEditForm();
+                    setEditModalVisible(false);
+                  }}
+                  disabled={updatingChild}>
+                  <Text style={styles.btnSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={updateChild}
+                  disabled={updatingChild}>
+                  {updatingChild ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnPrimaryText}>Save Changes</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={editMapModalVisible}
+        animationType="slide"
+        onRequestClose={() => setEditMapModalVisible(false)}>
+        <SafeAreaView style={styles.mapFullscreen}>
+          <View style={styles.mapToolbar}>
+            <Text style={styles.mapToolbarTitle}>
+              Pin {editingLocation === 'home' ? 'Home' : 'School'}
+            </Text>
+          </View>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.mapWidget}
+            initialRegion={
+              editTempMarker
+                ? { ...editTempMarker, latitudeDelta: 0.01, longitudeDelta: 0.01 }
+                : defaultRegion
+            }
+            onPress={handleEditMapPress}>
+            {editTempMarker && (
+              <Marker
+                coordinate={editTempMarker}
+                pinColor={
+                  editingLocation === 'home' ? theme.colors.primary : theme.colors.secondary
+                }
+              />
+            )}
+          </MapView>
+          <View style={styles.mapFooter}>
+            <TouchableOpacity
+              style={styles.btnSecondary}
+              onPress={() => {
+                setEditMapModalVisible(false);
+                setEditTempMarker(null);
+              }}>
+              <Text>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnPrimary} onPress={confirmEditLocation}>
+              <Text style={styles.btnPrimaryText}>Set Location</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -695,6 +1149,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  childAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  childAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  childAvatarText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
   },
   childName: { fontSize: 20, fontWeight: '800', color: theme.colors.text.primary },
   statusBadge: {
@@ -852,11 +1331,44 @@ const styles = StyleSheet.create({
     padding: 28,
     height: '85%',
   },
-  detailHeaderRow: {
+  detailHeaderContainer: {
+    marginBottom: 24,
+  },
+  detailTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  detailActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  closeButton: {
+    display: 'none',
+  },
+  floatingCloseButton: {
+    position: 'absolute',
+    top: 24,
+    right: 24,
+    zIndex: 10,
+    backgroundColor: '#F1F3F5',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'center',
+  },
+  editButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   detailSheetTitle: { fontSize: 24, fontWeight: '900', color: theme.colors.text.primary },
   closeX: { fontSize: 24, color: theme.colors.text.light },
@@ -893,4 +1405,71 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
   },
   miniMap: { height: 120, borderRadius: 16 },
+  profilePicEditContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  profilePicEditButton: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  profilePicEdit: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+  },
+  profilePicPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profilePicPlaceholderText: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  profilePicPlaceholderLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  editBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  removePhotoButton: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+  },
+  removePhotoButtonText: {
+    color: theme.colors.error,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
 });
