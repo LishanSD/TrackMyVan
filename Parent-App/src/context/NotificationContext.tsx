@@ -12,6 +12,8 @@ import {
 } from '../types/notificationTypes';
 import { subscribeTripStatusChanges } from '../services/tripNotificationService';
 import { subscribeChildStatusChanges } from '../services/childStatusNotificationService';
+import { subscribeToNewMessages } from '../services/messageNotificationService';
+import { subscribeToStudentApprovals } from '../services/studentApprovalNotificationService';
 import { useAuth } from './AuthContext';
 import { getParentStudents } from '../services/childrenService';
 import { Student } from '../types/types';
@@ -97,11 +99,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       handleNotification
     );
 
+    // Subscribe to new messages from drivers
+    const unsubscribeMessages = subscribeToNewMessages(user.uid, handleNotification);
+
+    // Subscribe to student approval status changes
+    const unsubscribeApprovals = subscribeToStudentApprovals(user.uid, handleNotification);
+
     // Cleanup on unmount
     return () => {
       console.log('[NotificationContext] Cleaning up Firestore listeners');
       unsubscribeTrips();
       unsubscribeChildStatus();
+      unsubscribeMessages();
+      unsubscribeApprovals();
     };
   }, [user, students]);
 

@@ -10,6 +10,8 @@ export enum NotificationCategory {
   PICKUP = 'PICKUP',
   DROPOFF = 'DROPOFF',
   DRIVER = 'DRIVER',
+  MESSAGE = 'MESSAGE',
+  APPROVAL = 'APPROVAL',
   SYSTEM = 'SYSTEM',
 }
 
@@ -66,12 +68,40 @@ export interface ChildDroppedOffNotification extends BaseNotification {
   dropoffType: 'SCHOOL' | 'HOME';
 }
 
+// Message notifications
+export interface NewMessageNotification extends BaseNotification {
+  category: NotificationCategory.MESSAGE;
+  type: 'NEW_MESSAGE';
+  messageId: string;
+  senderName?: string;
+  studentId?: string;
+  studentName?: string;
+}
+
+// Student approval notifications
+export interface StudentApprovedNotification extends BaseNotification {
+  category: NotificationCategory.APPROVAL;
+  type: 'STUDENT_APPROVED';
+  studentId: string;
+  studentName?: string;
+}
+
+export interface StudentRejectedNotification extends BaseNotification {
+  category: NotificationCategory.APPROVAL;
+  type: 'STUDENT_REJECTED';
+  studentId: string;
+  studentName?: string;
+}
+
 // Union type of all notifications
 export type Notification =
   | TripStartedNotification
   | TripEndedNotification
   | ChildPickedUpNotification
-  | ChildDroppedOffNotification;
+  | ChildDroppedOffNotification
+  | NewMessageNotification
+  | StudentApprovedNotification
+  | StudentRejectedNotification;
 
 // Notification handler type
 export type NotificationHandler = (notification: Notification) => void;
@@ -108,6 +138,18 @@ export const getNotificationStyle = (category: NotificationCategory): Notificati
         backgroundColor: '#f59e0b', // amber
         iconColor: '#fff',
         icon: '👤',
+      };
+    case NotificationCategory.MESSAGE:
+      return {
+        backgroundColor: '#3b82f6', // blue
+        iconColor: '#fff',
+        icon: '💬',
+      };
+    case NotificationCategory.APPROVAL:
+      return {
+        backgroundColor: '#10b981', // green
+        iconColor: '#fff',
+        icon: '✅',
       };
     case NotificationCategory.SYSTEM:
       return {
