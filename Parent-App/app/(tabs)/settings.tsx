@@ -155,10 +155,19 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>Account Settings</Text>
-        <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
+            Account Settings
+          </Text>
+
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={handleEditProfile}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -178,10 +187,17 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionLabel}>App Settings</Text>
-        <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
+
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -439,7 +455,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
   },
   buttonText: {
     fontSize: 16,
@@ -581,5 +596,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  card: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
+    opacity: 0.6,
   },
 });

@@ -189,7 +189,13 @@ export default function SettingsScreen() {
           </Text>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={handleEditProfile}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -213,7 +219,13 @@ export default function SettingsScreen() {
           <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
 
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -508,7 +520,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 14,
-    borderBottomWidth: 1,
   },
   buttonText: {
     fontSize: 16,
