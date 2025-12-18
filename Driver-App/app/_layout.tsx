@@ -2,6 +2,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { TripProvider } from '../src/context/TripContext';
+import { NotificationProvider } from '../src/context/NotificationContext';
+import { ToastContainer } from '../src/components/notifications/ToastContainer';
 import { View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '../global.css';
@@ -34,10 +36,13 @@ function RootLayoutNav() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+      <ToastContainer />
+    </>
   );
 }
 
@@ -45,9 +50,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <TripProvider>
-          <RootLayoutNav />
-        </TripProvider>
+        <NotificationProvider>
+          <TripProvider>
+            <RootLayoutNav />
+          </TripProvider>
+        </NotificationProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
