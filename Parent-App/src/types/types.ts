@@ -30,6 +30,7 @@ export interface Student {
   homeLocation: Location;
   schoolLocation: Location;
   status: 'pending' | 'approved' | 'rejected';
+  profilePic?: string;
   createdAt: string;
 }
 
