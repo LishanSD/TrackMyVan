@@ -185,33 +185,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
 
-          <TouchableOpacity
-            style={[
-              styles.cardButton,
-              {
-                borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: theme.colors.border,
-              },
-            ]}
-            onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
-            activeOpacity={0.7}>
-            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
-              Notifications
-            </Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cardButton}
-            onPress={() => Alert.alert('Info', 'Privacy settings coming soon')}
-            activeOpacity={0.7}>
-            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>Privacy</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
 
         <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: theme.colors.error }]}
