@@ -311,27 +311,25 @@ export default function MessagesScreen() {
               </View>
             )
           }
-          ListFooterComponent={
-            selectedTarget && (
-              <View style={styles.chatInputContainer}>
-                <TextInput
-                  style={styles.chatInput}
-                  placeholder="Type a message to the driver..."
-                  placeholderTextColor="#9CA3AF"
-                  value={messageText}
-                  onChangeText={setMessageText}
-                  multiline
-                />
-                <TouchableOpacity
-                  style={[styles.sendButton, !messageText.trim() && styles.buttonDisabled]}
-                  disabled={!messageText.trim()}
-                  onPress={handleSendMessage}>
-                  <Ionicons name="send" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            )
-          }
         />
+        {selectedTarget && (
+          <View style={styles.chatInputContainer}>
+            <TextInput
+              style={styles.chatInput}
+              placeholder="Type a message to the driver..."
+              placeholderTextColor="#9CA3AF"
+              value={messageText}
+              onChangeText={setMessageText}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, !messageText.trim() && styles.buttonDisabled]}
+              disabled={!messageText.trim()}
+              onPress={handleSendMessage}>
+              <Ionicons name="send" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -504,6 +502,7 @@ const styles = StyleSheet.create({
     padding: 6,
     marginHorizontal: 20,
     marginTop: 8,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
