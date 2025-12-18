@@ -525,7 +525,7 @@ export default function DashboardScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
             <View style={styles.statusRow}>
-              <Text style={[styles.cardText, { color: tripStatusColor }]}>
+              <Text style={[styles.cardText, { color: tripStatusColor, flex: 1, marginRight: 8 }]}>
                 {tripStatusText.replace(/_/g, ' ').toLowerCase()}
               </Text>
               {isTripActive && (
