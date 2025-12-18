@@ -141,10 +141,19 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
     return (
       <View key={student.id} style={styles.studentCard}>
         <View style={styles.studentInfo}>
-          <Text style={styles.studentName}>{student.name}</Text>
-          <Text style={styles.studentStatus}>
-            Status: <Text style={styles.statusValue}>{displayStatus}</Text>
-          </Text>
+          {student.profilePic ? (
+            <Image source={{ uri: student.profilePic }} style={styles.studentAvatar} />
+          ) : (
+            <View style={styles.studentAvatarPlaceholder}>
+              <Text style={styles.studentAvatarText}>{student.name.charAt(0)}</Text>
+            </View>
+          )}
+          <View style={styles.studentInfoText}>
+            <Text style={styles.studentName}>{student.name}</Text>
+            <Text style={styles.studentStatus}>
+              Status: <Text style={styles.statusValue}>{displayStatus}</Text>
+            </Text>
+          </View>
         </View>
         <View style={styles.actionButtonsColumn}>
           {action ? (
@@ -791,6 +800,31 @@ const styles = StyleSheet.create({
   studentInfo: {
     flex: 1,
     paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  studentInfoText: {
+    flex: 1,
+  },
+  studentAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  studentAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  studentAvatarText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4B5563',
   },
   studentName: {
     fontSize: 16,

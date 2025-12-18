@@ -61,6 +61,7 @@ export interface Student {
   homeLocation: Location;
   schoolLocation: Location;
   status?: 'pending' | 'approved' | 'rejected';
+  profilePic?: string;
   currentVanStatus?: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF' | 'NOT_ATTENDED';
   createdAt?: string;
 }

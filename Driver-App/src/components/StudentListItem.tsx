@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Student } from '../types/types';
 import { theme } from '../theme/theme';
@@ -38,9 +38,13 @@ const StudentListItem: React.FC<Props> = ({ student, onPress, onApprove, onRejec
       activeOpacity={0.7}>
       {/* Header: Avatar, Name, Status */}
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{student.name.charAt(0)}</Text>
-        </View>
+        {student.profilePic ? (
+          <Image source={{ uri: student.profilePic }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{student.name.charAt(0)}</Text>
+          </View>
+        )}
 
         <View style={styles.headerContent}>
           <Text style={styles.name} numberOfLines={1}>
@@ -143,6 +147,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 12,
   },
   avatarText: {
