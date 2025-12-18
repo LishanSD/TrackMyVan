@@ -59,8 +59,14 @@ export const rejectStudent = async (studentId: string) => {
   });
 };
 
-export const deleteStudent = async (studentId: string) => {
-  await deleteDoc(doc(firestore, 'students', studentId));
+export const unassignStudent = async (studentId: string) => {
+  await updateDoc(doc(firestore, 'students', studentId), {
+    driverId: null,
+    driverName: null,
+    driverEmail: null,
+    driverPhone: null,
+    status: 'pending', // Reverts to pending state, effectively unassigned
+  });
 };
 
 export const fetchAttendanceHistory = async (
