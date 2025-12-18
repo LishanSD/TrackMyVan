@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+
+    /* =========================
+       DRIVER PROFILES
+       ========================= */
+    match /drivers/{driverId} {
+      // Parents can READ driver profiles
+      // Drivers can READ & WRITE their own profile
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == driverId;
+    }
+
+    /* =========================
+       PARENT PROFILES
+       ========================= */
+    match /parents/{parentId} {
+      // Drivers can READ parent profiles
+      // Parents can READ & WRITE their own profile
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == parentId;
+    }
+
+    /* =========================
+       STUDENTS
+       ========================= */
+    match /students/{studentId} {
+
+      // READ:
+      // - Parent can read their students
+      // - Driver can read their students
+      allow read: if request.auth != null
+                  && (
+                    resource.data.parentId == request.auth.uid ||
+                    resource.data.driverId == request.auth.uid
+                  );
+
+      // CREATE / UPDATE:
+      // - Parent can create/update their students
+      // - Driver can update their students (approve, pickup, drop)
+      // - Driver can remove themselves (update driverId to null) -> requires matching resource.data.driverId
+      allow create, update: if request.auth != null
+                   && (
+                     request.resource.data.parentId == request.auth.uid ||
+                     request.resource.data.driverId == request.auth.uid ||
+                     resource.data.driverId == request.auth.uid
+                   );
+
+      // DELETE:
+      // - Parent can delete their students
+      allow delete: if request.auth != null
+                    && (
+                      resource.data.parentId == request.auth.uid
+                    );
+    }
+
+    /* =========================
+       TRIPS (NEW RULE)
+       ========================= */
+    match /trips/{tripId} {
+
+      // Helper: determine if the caller is (or is setting) the driver for this trip
+      function isTripDriver() {
+        return request.auth != null
+          && (
+            // Normal case: trip already has driverId, must match auth uid
+            resource.data.driverId == request.auth.uid
+            // Backwards-compat case: trip has no driverId yet, but this update is
+            // setting driverId to the authenticated user
+            || (!('driverId' in resource.data)
+                && request.resource.data.driverId == request.auth.uid)
+          );
+      }
+
+      // Driver can CREATE a new trip document. The trip must belong to them.
+      allow create: if request.auth != null
+                      && request.resource.data.driverId == request.auth.uid;
+
+      // Driver can UPDATE an existing trip (e.g., set end time). Trip must belong to them.
+      allow update: if isTripDriver();
+
+      // Allow authenticated users to read trips (you can tighten this later if needed)
+      allow read: if request.auth != null;
+    }
+
+    /* =========================
+       VAN_LOCATIONS (NEW RULE)
+       ========================= */
+    match /van_locations/{driverId} {
+      // Driver must be authenticated and the document ID (driverId) must match their UID
+      // This allows them to create/update their real-time location document.
+      allow write: if request.auth != null
+                       && request.auth.uid == driverId; 
+      
+      // Parents can READ all van locations to display the map (assuming parents can access all van locations)
+      // A more secure rule would check if the parent is subscribed to this driver.
+      allow read: if true; // Or restrict read access to only authenticated users: if request.auth != null;
+    }
+
+		/* =========================
+       CHILD STATUS
+       ========================= */
+    match /childStatus/{childId}/dates/{dateId} {
+      // Allow authenticated users to READ
+      allow read: if request.auth != null;
+
+      // Allow WRITE if the authenticated user (driver|parent) owns the student profile.
+      allow write: if request.auth != null 
+                    && (isDriverForChild(childId) || isParentForChild(childId) );
+    }
+    
+    //Routes Collection
+    
+    match /routes/{routeId} {
+      // Allow drivers to read their own routes
+      allow read: if request.auth != null;
+      
+      // Allow drivers to create/update their own routes
+      allow create: if request.auth != null && 
+                      request.auth.uid == request.resource.data.driverId;
+      
+      allow update: if request.auth != null && 
+                      request.auth.uid == resource.data.driverId;
+      
+      // Allow drivers to delete their own routes
+      allow delete: if request.auth != null && 
+                      request.auth.uid == resource.data.driverId;
+    }
+    
+    
+    /* =========================
+       Helper Functions (NEW)
+       ========================= */
+    // Function to check if the authenticated user is the driver for the given childId
+    function isDriverForChild(childId) {
+      return get(/databases/$(database)/documents/students/$(childId)).data.driverId == request.auth.uid;
+    }
+    // Function to check if the authenticated user is the parent for the given childId
+    function isParentForChild(childId) {
+      return get(/databases/$(database)/documents/students/$(childId)).data.parentId == request.auth.uid;
+    }
+
+    // =========================
+    // MESSAGES (NEW)
+    // =========================
+    match /messages/{messageId} {
+      // Drivers or parents involved in the conversation can READ
+      allow read: if request.auth != null &&
+        (
+          resource.data.driverId == request.auth.uid ||
+          resource.data.parentId == request.auth.uid
+        );
+
+      // Allow creating a message if the authenticated user is
+      // either the driver or the parent in that conversation
+      allow create: if request.auth != null &&
+        (
+          request.resource.data.driverId == request.auth.uid ||
+          request.resource.data.parentId == request.auth.uid
+        );
+
+      // Make messages append-only
+      allow update, delete: if false;
+    }
+
+    /* =========================
+       DEFAULT DENY
+       ========================= */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
