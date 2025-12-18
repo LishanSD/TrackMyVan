@@ -110,7 +110,7 @@ export const isChildOnActiveTrip = async (childId: string, driverId: string): Pr
       return false;
     }
 
-    return activeTrip.children.includes(childId);
+    return activeTrip.children.some((child) => child.childId === childId);
   } catch (error) {
     console.error('Error checking child trip status:', error);
     return false;
