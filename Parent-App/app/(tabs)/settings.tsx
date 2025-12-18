@@ -19,7 +19,7 @@ import { theme } from '../../src/theme/theme';
 const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
-  const { user, userProfile, logout, updateProfile, uploadProfilePicture } = useAuth();
+  const { user, userProfile, logout, updateUserProfile, uploadProfilePicture } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,7 +101,7 @@ export default function SettingsScreen() {
         profilePicUrl = await uploadProfilePicture(selectedImage);
       }
 
-      await updateProfile({
+      await updateUserProfile({
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         profilePic: profilePicUrl || undefined,
@@ -262,7 +262,7 @@ export default function SettingsScreen() {
                     </View>
                   )}
                   <View style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}>
-                    <Text style={styles.editBadgeIcon}>✎</Text>
+                    <Text style={styles.editBadgeText}>✎</Text>
                   </View>
                 </TouchableOpacity>
               </View>
@@ -520,9 +520,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   profilePicEditButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
-  editBadgeIcon: {
+  editBadgeText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',

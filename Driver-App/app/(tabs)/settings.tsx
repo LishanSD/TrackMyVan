@@ -19,7 +19,7 @@ import { theme } from '../../src/theme/theme';
 const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
-  const { user, userProfile, logout, updateProfile, uploadProfilePicture } = useAuth();
+  const { user, userProfile, logout, updateUserProfile, uploadProfilePicture } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,7 +105,7 @@ export default function SettingsScreen() {
         profilePicUrl = await uploadProfilePicture(selectedImage);
       }
 
-      await updateProfile({
+      await updateUserProfile({
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         vanModel: formData.vanModel.trim() || undefined,
