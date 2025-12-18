@@ -289,7 +289,7 @@ export default function ChildrenScreen() {
         homeLocation,
         schoolLocation,
         status: 'pending',
-        profilePic: profilePicUrl,
+        profilePic: profilePicUrl || null,
         createdAt: new Date().toISOString(),
       });
       Alert.alert('Success', 'Child added successfully. Waiting for driver approval.');
@@ -380,7 +380,7 @@ export default function ChildrenScreen() {
         grade: editChildGrade.trim(),
         homeLocation: editHomeLocation,
         schoolLocation: editSchoolLocation,
-        profilePic: profilePicUrl,
+        profilePic: profilePicUrl || null,
       });
       Alert.alert('Success', 'Child information updated successfully');
       setEditModalVisible(false);
@@ -653,6 +653,16 @@ export default function ChildrenScreen() {
                     <Text style={styles.editBadgeText}>✎</Text>
                   </View>
                 </TouchableOpacity>
+                {(selectedChildImage || childProfilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setChildProfilePic(null);
+                      setSelectedChildImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <Text style={styles.sectionHeading}>1. Driver Assignment</Text>
@@ -945,6 +955,16 @@ export default function ChildrenScreen() {
                     <Text style={styles.editBadgeText}>✎</Text>
                   </View>
                 </TouchableOpacity>
+                {(selectedEditImage || editChildProfilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setEditChildProfilePic(null);
+                      setSelectedEditImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <Text style={styles.sectionHeading}>Student Profile</Text>
@@ -1416,4 +1436,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+  removePhotoButton: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+  },
+  removePhotoButtonText: {
+    color: theme.colors.error,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
 });

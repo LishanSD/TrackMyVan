@@ -61,7 +61,7 @@ export interface Student {
   homeLocation: Location;
   schoolLocation: Location;
   status?: 'pending' | 'approved' | 'rejected';
-  profilePic?: string;
+  profilePic?: string | null;
   currentVanStatus?: 'NOT_PICKED_UP' | 'IN_VAN' | 'DROPPED_OFF' | 'NOT_ATTENDED';
   createdAt?: string;
 }
@@ -70,7 +70,7 @@ export interface UserProfile {
   email: string;
   name: string;
   phone: string;
-  profilePic?: string;
+  profilePic?: string | null;
   vanModel?: string;
   licensePlateNo?: string;
   role: 'driver';

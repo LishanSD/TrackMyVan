@@ -15,7 +15,7 @@ interface UserProfile {
   email: string;
   name: string;
   phone: string;
-  profilePic?: string;
+  profilePic?: string | null;
   role: 'parent';
   createdAt: string;
 }

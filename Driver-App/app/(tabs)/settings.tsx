@@ -99,18 +99,16 @@ export default function SettingsScreen() {
 
     setSaving(true);
     try {
-      let profilePicUrl = formData.profilePic;
-
-      if (selectedImage) {
-        profilePicUrl = await uploadProfilePicture(selectedImage);
-      }
+      const profilePicUrl = selectedImage 
+        ? await uploadProfilePicture(selectedImage)
+        : (formData.profilePic || null);
 
       await updateUserProfile({
         name: formData.name.trim(),
         phone: formData.phone.trim(),
         vanModel: formData.vanModel.trim() || undefined,
         licensePlateNo: formData.licensePlateNo.trim() || undefined,
-        profilePic: profilePicUrl || undefined,
+        profilePic: profilePicUrl,
       });
 
       Alert.alert('Success', 'Profile updated successfully');
@@ -293,6 +291,16 @@ export default function SettingsScreen() {
                     <Text style={styles.editBadgeText}>✎</Text>
                   </View>
                 </TouchableOpacity>
+                {(selectedImage || formData.profilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setFormData({ ...formData, profilePic: '' });
+                      setSelectedImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -514,6 +522,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 16,
     opacity: 0.6,
+  },
+  removePhotoButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+  },
+  removePhotoButtonText: {
+    color: theme.colors.error,
+    fontSize: 13,
+    fontWeight: '600',
   },
   cardButton: {
     flexDirection: 'row',
