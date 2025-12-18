@@ -30,6 +30,7 @@ import {
 } from 'firebase/firestore';
 import { theme } from '../../src/theme/theme';
 import { ChildStatus, PickupStatus } from '../../src/types/types';
+import { deleteChild } from '../../src/services/childrenService';
 
 const { width } = Dimensions.get('window');
 
@@ -490,6 +491,32 @@ export default function ChildrenScreen() {
     };
   }, [detailModalVisible, selectedChild]);
 
+  const handleRemoveChild = () => {
+    if (!selectedChild) return;
+
+    Alert.alert(
+      'Remove Child',
+      'Are you sure you want to remove this child? This action cannot be undone and you will lose all tracking history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteChild(selectedChild.id);
+              Alert.alert('Success', 'Child removed successfully');
+              setDetailModalVisible(false);
+              setSelectedChild(null);
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
@@ -775,6 +802,7 @@ export default function ChildrenScreen() {
                 <>
                   <View style={styles.detailHeaderRow}>
                     <Text style={styles.detailSheetTitle}>{selectedChild.name}</Text>
+
                     <View style={styles.detailHeaderActions}>
                       <TouchableOpacity
                         style={styles.editButton}
@@ -782,7 +810,13 @@ export default function ChildrenScreen() {
                         activeOpacity={0.7}>
                         <Text style={styles.editButtonText}>Edit</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
+                      <TouchableOpacity 
+                        style={[styles.editButton, { backgroundColor: '#FEE2E2', marginLeft: 8 }]}
+                        onPress={handleRemoveChild}
+                        activeOpacity={0.7}>
+                        <Text style={[styles.editButtonText, { color: theme.colors.error }]}>Remove</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setDetailModalVisible(false)} style={{ marginLeft: 16 }}>
                         <Text style={styles.closeX}>✕</Text>
                       </TouchableOpacity>
                     </View>

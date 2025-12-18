@@ -6,6 +6,7 @@ import {
   doc,
   updateDoc,
   getDocs,
+  deleteDoc,
   Unsubscribe,
 } from 'firebase/firestore';
 import { firestore } from '../config/firebaseConfig';
@@ -56,6 +57,10 @@ export const rejectStudent = async (studentId: string) => {
     status: 'rejected',
     rejectedAt: new Date().toISOString(),
   });
+};
+
+export const deleteStudent = async (studentId: string) => {
+  await deleteDoc(doc(firestore, 'students', studentId));
 };
 
 export const fetchAttendanceHistory = async (

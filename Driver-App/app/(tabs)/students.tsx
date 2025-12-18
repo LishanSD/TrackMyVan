@@ -23,6 +23,7 @@ import AttendanceHistory from '../../src/components/AttendanceHistory';
 import {
   approveStudent,
   rejectStudent,
+  deleteStudent,
   subscribeToDriverStudents,
   fetchAttendanceHistory,
 } from '../../src/services/studentService';
@@ -84,6 +85,28 @@ export default function StudentsScreen() {
         },
       },
     ]);
+  };
+
+  const handleRemove = async (studentId: string) => {
+    Alert.alert(
+      'Remove Student',
+      'Are you sure you want to remove this student? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteStudent(studentId);
+              Alert.alert('Success', 'Student removed successfully');
+            } catch (error: any) {
+              Alert.alert('Error', error.message);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const viewStudentDetails = (student: Student) => {
@@ -274,6 +297,7 @@ export default function StudentsScreen() {
               onPress={viewStudentDetails}
               onApprove={handleApprove}
               onReject={handleReject}
+              onRemove={handleRemove}
             />
           ))
         )}
