@@ -47,6 +47,7 @@ interface TripContextValue {
   // Helper getters
   isActive: boolean;
   hasRoute: boolean;
+  signalStatus: 'GOOD' | 'WEAK' | 'LOST';
 }
 
 // ============================================================================
@@ -77,6 +78,34 @@ export function TripProvider({ children }: TripProviderProps) {
   const [locationSubscription, setLocationSubscription] = useState<{ remove: () => void } | null>(
     null
   );
+
+  const [signalStatus, setSignalStatus] = useState<'GOOD' | 'WEAK' | 'LOST'>('GOOD');
+
+  // Check for signal loss
+  useEffect(() => {
+    if (tripState.status !== 'ACTIVE') {
+      setSignalStatus('GOOD');
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (!tripState.vehicleLocation) {
+        setSignalStatus('LOST');
+        return;
+      }
+
+      const diff = Date.now() - tripState.vehicleLocation.timestamp;
+      if (diff > 60000) { // 1 minute
+        setSignalStatus('LOST');
+      } else if (diff > 15000) { // 15 seconds
+        setSignalStatus('WEAK');
+      } else {
+        setSignalStatus('GOOD');
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [tripState.status, tripState.vehicleLocation]);
 
   // Set trip data when trip starts
   const setTripData = (tripId: string, tripType: TripType, route: OptimizedRoute) => {
@@ -155,6 +184,8 @@ export function TripProvider({ children }: TripProviderProps) {
         latitude: location.latitude,
         longitude: location.longitude,
         timestamp: Date.now(),
+        speed: location.speed,
+        heading: location.heading,
       });
     });
 
@@ -192,6 +223,7 @@ export function TripProvider({ children }: TripProviderProps) {
     clearTrip,
     isActive,
     hasRoute,
+    signalStatus,
   };
 
   return <TripContext.Provider value={value}>{children}</TripContext.Provider>;
