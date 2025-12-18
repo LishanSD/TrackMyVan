@@ -34,38 +34,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 import { TripType, ChildActionEvent, StudentStatus, Student } from '../../src/types/types';
 
-const LOCATION_TASK_NAME = 'BACKGROUND_LOCATION_TASK';
+import {
+  startBackgroundLocation,
+  stopBackgroundLocation,
+  isBackgroundLocationActive,
+  LOCATION_TASK_NAME, // Just importing to check usage if needed, or remove if unused
+} from '../../src/services/locationService';
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error('Location Task Error:', error.message);
-    return;
-  }
-  if (data) {
-    const { locations } = data as { locations: Location.LocationObject[] };
-    const latestLocation = locations[0];
-    const driverId = await AsyncStorage.getItem('driverId');
-
-    if (!driverId) {
-      console.error('Driver ID not found. Stopping updates.');
-      return;
-    }
-
-    try {
-      const vanLocationRef = ref(database, `locations/${driverId}`);
-      const locationData = {
-        lat: latestLocation.coords.latitude,
-        lng: latestLocation.coords.longitude,
-        speed: latestLocation.coords.speed || 0,
-        bearing: latestLocation.coords.heading || 0,
-        timestamp: Date.now(),
-      };
-      await set(vanLocationRef, locationData);
-    } catch (e) {
-      console.error('Error sending location to Realtime DB:', e);
-    }
-  }
-});
 
 interface StudentListProps {
   students: Student[];
@@ -212,7 +187,7 @@ const StudentList: React.FC<StudentListProps> = ({ students, onUpdateStatus, tri
 
 export default function DashboardScreen() {
   const { user, userProfile } = useAuth();
-  const { setTripData, endTrip: endTripContext } = useTrip();
+  const { setTripData, endTrip: endTripContext, signalStatus } = useTrip();
   const router = useRouter();
   const [isTripActive, setIsTripActive] = useState(false);
   const [tripStatusText, setTripStatusText] = useState('No active trip');
@@ -442,17 +417,8 @@ export default function DashboardScreen() {
 
       setTripData(tripId, tripType, optimizedRoute);
 
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.BestForNavigation,
-        distanceInterval: 10,
-        timeInterval: 5000,
-        showsBackgroundLocationIndicator: true,
-        foregroundService: {
-          notificationTitle: 'Van Tracking Active',
-          notificationBody: 'Your location is being shared with parents.',
-          notificationColor: theme.colors.primary,
-        },
-      });
+      await startBackgroundLocation();
+
 
       setIsTripActive(true);
       setTripStatusText(`Trip IN_PROGRESS: ${tripType}`);
@@ -470,8 +436,8 @@ export default function DashboardScreen() {
   const handleEndTrip = async () => {
     if (!driverId || !currentTripId) return;
     try {
-      if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
-        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      if (await isBackgroundLocationActive()) {
+        await stopBackgroundLocation();
       }
 
       await updateDoc(doc(firestore, 'trips', currentTripId), {
@@ -558,9 +524,29 @@ export default function DashboardScreen() {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Trip Status</Text>
-            <Text style={[styles.cardText, { color: tripStatusColor }]}>
-              {tripStatusText.replace(/_/g, ' ').toLowerCase()}
-            </Text>
+            <View style={styles.statusRow}>
+              <Text style={[styles.cardText, { color: tripStatusColor }]}>
+                {tripStatusText.replace(/_/g, ' ').toLowerCase()}
+              </Text>
+              {isTripActive && (
+                <View style={styles.signalContainer}>
+                  <View
+                    style={[
+                      styles.signalDot,
+                      {
+                        backgroundColor:
+                          signalStatus === 'GOOD'
+                            ? theme.colors.success
+                            : signalStatus === 'WEAK'
+                              ? theme.colors.warning
+                              : theme.colors.error,
+                      },
+                    ]}
+                  />
+                  <Text style={styles.signalText}>GPS: {signalStatus}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {!isTripActive && (
@@ -696,6 +682,30 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     textTransform: 'capitalize',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  signalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  signalDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  signalText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4B5563',
   },
   tripTypeContainer: {
     marginBottom: 24,

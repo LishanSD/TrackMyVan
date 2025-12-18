@@ -12,6 +12,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../src/context/AuthContext';
 import { theme } from '../../src/theme/theme';
@@ -19,7 +20,8 @@ import { theme } from '../../src/theme/theme';
 const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
-  const { user, userProfile, logout, updateUserProfile, uploadProfilePicture } = useAuth();
+  const { user, userProfile, logout, updateUserProfile, uploadProfilePicture, changePassword } = useAuth();
+
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -31,6 +33,14 @@ export default function SettingsScreen() {
     profilePic: userProfile?.profilePic || '',
   });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
 
   const handleLogout = () => {
     Alert.alert(
@@ -120,11 +130,46 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      Alert.alert('Error', 'New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      Alert.alert('Error', 'New password must be at least 6 characters long');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await changePassword(passwordData.currentPassword, passwordData.newPassword);
+      Alert.alert('Success', 'Password changed successfully');
+      setChangePasswordModalVisible(false);
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        style={[styles.scrollView, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
       <View style={styles.innerContainer}>
         <Text style={[styles.headerText, { color: theme.colors.text.primary }]}>Settings</Text>
 
@@ -204,7 +249,14 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.cardButton}
-            onPress={() => Alert.alert('Info', 'Change password feature coming soon')}
+            onPress={() => {
+              setPasswordData({
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: '',
+              });
+              setChangePasswordModalVisible(true);
+            }}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
               Change Password
@@ -213,33 +265,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
 
-          <TouchableOpacity
-            style={[
-              styles.cardButton,
-              {
-                borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: theme.colors.border,
-              },
-            ]}
-            onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
-            activeOpacity={0.7}>
-            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
-              Notifications
-            </Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cardButton}
-            onPress={() => Alert.alert('Info', 'Privacy settings coming soon')}
-            activeOpacity={0.7}>
-            <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>Privacy</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        </View>
 
         <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: theme.colors.error }]}
@@ -401,12 +427,113 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+
+      <Modal
+        visible={changePasswordModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setChangePasswordModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.modalHeaderIndicator} />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
+                Change Password
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
+                  Current Password *
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
+                  value={passwordData.currentPassword}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, currentPassword: text })}
+                  placeholder="Enter current password"
+                  placeholderTextColor={theme.colors.text.light}
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
+                  New Password *
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
+                  value={passwordData.newPassword}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, newPassword: text })}
+                  placeholder="Enter new password (min 6 chars)"
+                  placeholderTextColor={theme.colors.text.light}
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>
+                  Confirm New Password *
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { color: theme.colors.text.primary, borderColor: theme.colors.border },
+                  ]}
+                  value={passwordData.confirmPassword}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, confirmPassword: text })}
+                  placeholder="Confirm new password"
+                  placeholderTextColor={theme.colors.text.light}
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    styles.cancelButton,
+                    { borderColor: theme.colors.border },
+                  ]}
+                  onPress={() => setChangePasswordModalVisible(false)}
+                  disabled={saving}>
+                  <Text style={[styles.modalButtonText, { color: theme.colors.text.primary }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    styles.saveButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                  onPress={handleChangePassword}
+                  disabled={saving}>
+                  {saving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.modalButtonTextSave}>Update Password</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   scrollContent: {

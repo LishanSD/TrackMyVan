@@ -99,11 +99,25 @@ export default function TrackingScreen() {
     };
   }, [childId, student]);
 
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 30000); // Update every 30 seconds to keep "ago" time fresh
+    return () => clearInterval(interval);
+  }, []);
+
+  const getSecondsAgo = () => {
+    if (!lastUpdate) return 0;
+    return Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
+  };
+
+  const secondsAgo = getSecondsAgo();
+  const isStale = secondsAgo > 60; // Consider stale if > 60 seconds
+
   const formatLastUpdate = () => {
     if (!lastUpdate) return 'Not available';
-
-    const now = new Date();
-    const secondsAgo = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
 
     if (secondsAgo < 60) return `${secondsAgo}s ago`;
     if (secondsAgo < 3600) return `${Math.floor(secondsAgo / 60)}m ago`;
@@ -192,7 +206,9 @@ export default function TrackingScreen() {
         <View style={styles.verticalDivider} />
         <View style={styles.infoItem}>
           <Text style={styles.infoLabel}>LAST UPDATE</Text>
-          <Text style={styles.infoValue}>{formatLastUpdate()}</Text>
+          <Text style={[styles.infoValue, isStale && { color: theme.colors.error }]}>
+            {formatLastUpdate()}
+          </Text>
         </View>
       </View>
 
@@ -205,6 +221,8 @@ export default function TrackingScreen() {
           loading={false}
           error={null}
           routeGeometry={routeGeometry}
+          isStale={isStale}
+          formattedLastUpdate={formatLastUpdate()}
         />
         <View style={styles.liveIndicator}>
           <View style={styles.pulseDot} />
