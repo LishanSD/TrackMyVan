@@ -1,6 +1,8 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
+import { NotificationProvider, useNotifications } from '../src/context/NotificationContext';
+import { ToastContainer } from '../src/components/common/ToastContainer';
 import { View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '../global.css';
@@ -40,11 +42,27 @@ function RootLayoutNav() {
   );
 }
 
+// Wrapper component to access notification context
+function AppWithNotifications() {
+  const { notifications, removeNotification } = useNotifications();
+
+  console.log('[AppWithNotifications] Rendering with notifications:', notifications.length);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <RootLayoutNav />
+      <ToastContainer notifications={notifications} onDismiss={removeNotification} />
+    </View>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootLayoutNav />
+        <NotificationProvider>
+          <AppWithNotifications />
+        </NotificationProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

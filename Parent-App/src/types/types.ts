@@ -30,6 +30,7 @@ export interface Student {
   homeLocation: Location;
   schoolLocation: Location;
   status: 'pending' | 'approved' | 'rejected';
+  profilePic?: string | null;
   createdAt: string;
 }
 
@@ -76,7 +77,7 @@ export interface Trip {
   status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   startTime?: number; // timestamp
   endTime?: number; // timestamp
-  children: string[]; // array of childIds
+  children: Array<{ childId: string; status: string }>; // array of child objects with status
 }
 
 // Individual pickup/dropoff status

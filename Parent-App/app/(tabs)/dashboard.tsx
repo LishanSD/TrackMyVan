@@ -13,11 +13,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
-import { Student, ChildStatus } from '../../src/types/types';
+import { Student, ChildStatus, PickupStatus } from '../../src/types/types';
 import { subscribeToParentStudents } from '../../src/services/childrenService';
 import { getChildStatusTodayOrDefault } from '../../src/services/childStatusService';
+import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { firestore } from '../../src/config/firebaseConfig';
 import { StudentCard } from '../../src/components/StudentCard';
 import { theme } from '../../src/theme/theme';
+
+// Helper function to convert Firestore timestamps
+const toMillis = (
+  value?: number | { seconds: number; nanoseconds?: number } | any
+): number | undefined => {
+  if (!value) return undefined;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'object' && 'seconds' in value) {
+    return value.seconds * 1000 + (value.nanoseconds ?? 0) / 1_000_000;
+  }
+  return undefined;
+};
+
+const convertPickupStatus = (status: any): PickupStatus => {
+  if (!status) return { status: 'PENDING' };
+  return {
+    status: status.status || 'PENDING',
+    time: toMillis(status.time),
+    location: status.location,
+  };
+};
+
+const getTodayDateString = (): string => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
 
 export default function DashboardScreen() {
   const { user, userProfile } = useAuth();
@@ -28,6 +56,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState(getTodayDateString());
 
   const fetchChildStatuses = async (studentList: Student[]) => {
     try {
@@ -67,6 +96,71 @@ export default function DashboardScreen() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // Real-time subscription to child status updates with day transition handling
+  useEffect(() => {
+    if (students.length === 0) return;
+
+    console.log(
+      '[Dashboard] Setting up real-time child status subscriptions for',
+      students.length,
+      'students'
+    );
+
+    const unsubscribers: Unsubscribe[] = [];
+    const today = currentDate;
+
+    students.forEach((student) => {
+      const childStatusRef = doc(firestore, 'childStatus', student.id, 'dates', today);
+
+      const unsubscribe = onSnapshot(
+        childStatusRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            const status: ChildStatus = {
+              childId: student.id,
+              date: today,
+              currentStatus: data.currentStatus || 'AT_HOME',
+              morningPickup: convertPickupStatus(data.morningPickup),
+              schoolDropoff: convertPickupStatus(data.schoolDropoff),
+              schoolPickup: convertPickupStatus(data.schoolPickup),
+              homeDropoff: convertPickupStatus(data.homeDropoff),
+            };
+
+            setChildStatuses((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(student.id, status);
+              return newMap;
+            });
+
+            console.log('[Dashboard] Updated status for', student.name, ':', data.currentStatus);
+          }
+        },
+        (error) => {
+          console.error('[Dashboard] Error listening to child status for', student.id, ':', error);
+        }
+      );
+
+      unsubscribers.push(unsubscribe);
+    });
+
+    // Check for day change every minute
+    const dayCheckInterval = setInterval(() => {
+      const newDate = getTodayDateString();
+      if (newDate !== currentDate) {
+        console.log('[Dashboard] Day changed from', currentDate, 'to', newDate);
+        setCurrentDate(newDate);
+        // The useEffect will re-run automatically due to currentDate dependency
+      }
+    }, 60000); // Check every 60 seconds
+
+    return () => {
+      console.log('[Dashboard] Cleaning up child status subscriptions');
+      unsubscribers.forEach((unsub) => unsub());
+      clearInterval(dayCheckInterval);
+    };
+  }, [students, currentDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);

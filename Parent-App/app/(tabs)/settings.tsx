@@ -19,7 +19,7 @@ import { theme } from '../../src/theme/theme';
 const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
-  const { user, userProfile, logout, updateProfile, uploadProfilePicture } = useAuth();
+  const { user, userProfile, logout, updateUserProfile, uploadProfilePicture } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -95,16 +95,14 @@ export default function SettingsScreen() {
 
     setSaving(true);
     try {
-      let profilePicUrl = formData.profilePic;
+      const profilePicUrl = selectedImage 
+        ? await uploadProfilePicture(selectedImage)
+        : (formData.profilePic || null);
 
-      if (selectedImage) {
-        profilePicUrl = await uploadProfilePicture(selectedImage);
-      }
-
-      await updateProfile({
+      await updateUserProfile({
         name: formData.name.trim(),
         phone: formData.phone.trim(),
-        profilePic: profilePicUrl || undefined,
+        profilePic: profilePicUrl,
       });
 
       Alert.alert('Success', 'Profile updated successfully');
@@ -155,10 +153,19 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>Account Settings</Text>
-        <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>
+            Account Settings
+          </Text>
+
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={handleEditProfile}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -178,10 +185,17 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionLabel}>App Settings</Text>
-        <View style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text.primary }]}>App Settings</Text>
+
           <TouchableOpacity
-            style={[styles.cardButton, { borderBottomColor: theme.colors.border }]}
+            style={[
+              styles.cardButton,
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.border,
+              },
+            ]}
             onPress={() => Alert.alert('Info', 'Notifications settings coming soon')}
             activeOpacity={0.7}>
             <Text style={[styles.buttonText, { color: theme.colors.text.primary }]}>
@@ -246,9 +260,19 @@ export default function SettingsScreen() {
                     </View>
                   )}
                   <View style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}>
-                    <Text style={styles.editBadgeIcon}>✎</Text>
+                    <Text style={styles.editBadgeText}>✎</Text>
                   </View>
                 </TouchableOpacity>
+                {(selectedImage || formData.profilePic) && (
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => {
+                      setFormData({ ...formData, profilePic: '' });
+                      setSelectedImage(null);
+                    }}>
+                    <Text style={styles.removePhotoButtonText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -439,7 +463,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
   },
   buttonText: {
     fontSize: 16,
@@ -505,9 +528,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   profilePicEditButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -532,7 +555,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
-  editBadgeIcon: {
+  editBadgeText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
@@ -581,5 +604,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  card: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
+    opacity: 0.6,
+  },
+  removePhotoButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+  },
+  removePhotoButtonText: {
+    color: theme.colors.error,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

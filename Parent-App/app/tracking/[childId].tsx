@@ -5,8 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { doc, getDoc } from 'firebase/firestore';
 import { firestore } from '../../src/config/firebaseConfig';
 import { subscribeToDriverLocation } from '../../src/services/locationService';
+import { subscribeToActiveRoute, getRouteGeometryForMap } from '../../src/services/routeService';
 import { TrackingMap } from '../../src/components/TrackingMap';
 import { Student, DriverLocation } from '../../src/types/types';
+import { RouteGeometry } from '../../src/types/route.types';
 import { theme } from '../../src/theme/theme';
 
 export default function TrackingScreen() {
@@ -15,6 +17,7 @@ export default function TrackingScreen() {
 
   const [student, setStudent] = useState<Student | null>(null);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
+  const [routeGeometry, setRouteGeometry] = useState<RouteGeometry | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -68,6 +71,33 @@ export default function TrackingScreen() {
       unsubscribe();
     };
   }, [student?.driverId]);
+
+  // Subscribe to active route for this student
+  useEffect(() => {
+    if (!childId || !student) return;
+
+    // Determine trip type based on current time (simplified - you may want to make this more sophisticated)
+    const currentHour = new Date().getHours();
+    const tripType = currentHour < 12 ? 'MORNING' : 'AFTERNOON';
+
+    const unsubscribe = subscribeToActiveRoute(childId, tripType, (route) => {
+      if (route) {
+        const geometry = getRouteGeometryForMap(route);
+        setRouteGeometry(geometry);
+        console.log(
+          'Route geometry loaded:',
+          geometry ? `${geometry.coordinates.length} points` : 'null'
+        );
+      } else {
+        setRouteGeometry(null);
+        console.log('No active route found');
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [childId, student]);
 
   const formatLastUpdate = () => {
     if (!lastUpdate) return 'Not available';
@@ -174,6 +204,7 @@ export default function TrackingScreen() {
           studentName={student.name}
           loading={false}
           error={null}
+          routeGeometry={routeGeometry}
         />
         <View style={styles.liveIndicator}>
           <View style={styles.pulseDot} />

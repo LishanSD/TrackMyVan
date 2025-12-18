@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Student } from '../types/types';
 import { theme } from '../theme/theme';
@@ -9,6 +9,7 @@ type Props = {
   onPress: (student: Student) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onRemove?: (id: string) => void;
 };
 
 const getStatusColor = (status: string) => {
@@ -26,7 +27,7 @@ const getStatusColor = (status: string) => {
 
 const getStatusText = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
 
-const StudentListItem: React.FC<Props> = ({ student, onPress, onApprove, onReject }) => {
+const StudentListItem: React.FC<Props> = ({ student, onPress, onApprove, onReject, onRemove }) => {
   const status = student.status ?? 'pending';
   const statusColor = getStatusColor(status);
 
@@ -38,9 +39,13 @@ const StudentListItem: React.FC<Props> = ({ student, onPress, onApprove, onRejec
       activeOpacity={0.7}>
       {/* Header: Avatar, Name, Status */}
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{student.name.charAt(0)}</Text>
-        </View>
+        {student.profilePic ? (
+          <Image source={{ uri: student.profilePic }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{student.name.charAt(0)}</Text>
+          </View>
+        )}
 
         <View style={styles.headerContent}>
           <Text style={styles.name} numberOfLines={1}>
@@ -111,6 +116,14 @@ const StudentListItem: React.FC<Props> = ({ student, onPress, onApprove, onRejec
       ) : (
         <View style={styles.footerRow}>
           <Text style={styles.tapHint}>Tap to view details & locations</Text>
+          <TouchableOpacity
+            style={styles.removeButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              onRemove?.(student.id);
+            }}>
+            <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+          </TouchableOpacity>
         </View>
       )}
     </TouchableOpacity>
@@ -143,6 +156,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 12,
   },
   avatarText: {
@@ -256,13 +275,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   footerRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: -8,
   },
   tapHint: {
     fontSize: 12,
     color: theme.colors.primary,
     fontWeight: '500',
+  },
+  removeButton: {
+    position: 'absolute',
+    right: 0,
+    padding: 8,
   },
 });
 
