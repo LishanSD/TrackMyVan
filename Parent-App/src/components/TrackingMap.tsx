@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { Location, DriverLocation } from '../types/types';
+import { RouteGeometry } from '../types/route.types';
 import { theme } from '../theme/theme';
 
 interface TrackingMapProps {
@@ -12,6 +13,7 @@ interface TrackingMapProps {
   studentName: string;
   loading?: boolean;
   error?: string | null;
+  routeGeometry?: RouteGeometry | null;
 }
 
 export const TrackingMap: React.FC<TrackingMapProps> = ({
@@ -21,6 +23,7 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
   studentName,
   loading = false,
   error = null,
+  routeGeometry = null,
 }) => {
   const mapRef = useRef<MapView>(null);
 
@@ -81,13 +84,31 @@ export const TrackingMap: React.FC<TrackingMapProps> = ({
     <View style={styles.container}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={PROVIDER_DEFAULT}
         style={styles.map}
         initialRegion={getInitialRegion()}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={true}
         showsScale={true}>
+        {/* Driver Route Polyline - Only visible when trip is active */}
+        {(() => {
+          console.log('[TrackingMap] Route geometry:', {
+            exists: !!routeGeometry,
+            coordinateCount: routeGeometry?.coordinates?.length || 0,
+            firstCoordinate: routeGeometry?.coordinates?.[0],
+          });
+          return routeGeometry && routeGeometry.coordinates.length > 0 ? (
+            <Polyline
+              coordinates={routeGeometry.coordinates}
+              strokeColor={theme.colors.primary}
+              strokeWidth={4}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ) : null;
+        })()}
+
         {/* Home Location Marker */}
         <Marker
           coordinate={homeLocation}
