@@ -112,7 +112,9 @@ export const subscribeChildStatusChanges = (
           return;
         }
 
-        // Detect pickup events
+        // --- Morning Trip Notifications ---
+        
+        // 1. Morning Pickup
         if (
           currentStatus.morningPickup.status === 'COMPLETED' &&
           previousStatus?.morningPickup.status !== 'COMPLETED'
@@ -137,6 +139,35 @@ export const subscribeChildStatusChanges = (
           onNotification(notification);
         }
 
+        // 2. School Dropoff (Morning Trip End)
+        // Ensure we check specifically for the transition to COMPLETED
+        if (
+          currentStatus.schoolDropoff.status === 'COMPLETED' &&
+          previousStatus?.schoolDropoff.status !== 'COMPLETED'
+        ) {
+          const notification: ChildDroppedOffNotification = {
+            id: `dropoff-school-${childId}-${Date.now()}`,
+            timestamp: Date.now(),
+            category: NotificationCategory.DROPOFF,
+            type: 'CHILD_DROPPED_OFF',
+            title: 'Child Dropped Off',
+            message: `${childNames.get(childId) || 'Your child'} has been dropped off at school`,
+            childId,
+            childName: childNames.get(childId),
+            location: currentStatus.schoolDropoff.location,
+            dropoffType: 'SCHOOL',
+          };
+
+          console.log(
+            '[ChildStatusNotificationService] School dropoff notification TRIGGERED:',
+            notification
+          );
+          onNotification(notification);
+        }
+
+        // --- Afternoon Trip Notifications ---
+
+        // 3. School Pickup (Afternoon Trip Start)
         if (
           currentStatus.schoolPickup.status === 'COMPLETED' &&
           previousStatus?.schoolPickup.status !== 'COMPLETED'
@@ -161,31 +192,7 @@ export const subscribeChildStatusChanges = (
           onNotification(notification);
         }
 
-        // Detect dropoff events
-        if (
-          currentStatus.schoolDropoff.status === 'COMPLETED' &&
-          previousStatus?.schoolDropoff.status !== 'COMPLETED'
-        ) {
-          const notification: ChildDroppedOffNotification = {
-            id: `dropoff-school-${childId}-${Date.now()}`,
-            timestamp: Date.now(),
-            category: NotificationCategory.DROPOFF,
-            type: 'CHILD_DROPPED_OFF',
-            title: 'Child Dropped Off',
-            message: `${childNames.get(childId) || 'Your child'} has been dropped off at school`,
-            childId,
-            childName: childNames.get(childId),
-            location: currentStatus.schoolDropoff.location,
-            dropoffType: 'SCHOOL',
-          };
-
-          console.log(
-            '[ChildStatusNotificationService] School dropoff notification:',
-            notification
-          );
-          onNotification(notification);
-        }
-
+        // 4. Home Dropoff (Afternoon Trip End)
         if (
           currentStatus.homeDropoff.status === 'COMPLETED' &&
           previousStatus?.homeDropoff.status !== 'COMPLETED'
