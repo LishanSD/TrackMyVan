@@ -806,28 +806,34 @@ export default function ChildrenScreen() {
         onRequestClose={() => setDetailModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.detailSheet}>
+            <TouchableOpacity 
+              onPress={() => setDetailModalVisible(false)} 
+              style={styles.floatingCloseButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.closeX}>✕</Text>
+            </TouchableOpacity>
             <View style={styles.modalHandle} />
             <ScrollView showsVerticalScrollIndicator={false}>
               {selectedChild && (
                 <>
-                  <View style={styles.detailHeaderRow}>
-                    <Text style={styles.detailSheetTitle}>{selectedChild.name}</Text>
+                  <View style={styles.detailHeaderContainer}>
+                    <View style={styles.detailTopRow}>
+                      <Text style={styles.detailSheetTitle}>{selectedChild.name}</Text>
+                    </View>
 
-                    <View style={styles.detailHeaderActions}>
+                    <View style={styles.detailActionRow}>
                       <TouchableOpacity
-                        style={styles.editButton}
+                        style={[styles.editButton, { flex: 1, alignItems: 'center' }]}
                         onPress={() => openEditModal(selectedChild)}
                         activeOpacity={0.7}>
-                        <Text style={styles.editButtonText}>Edit</Text>
+                        <Text style={styles.editButtonText}>Edit Child</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
-                        style={[styles.editButton, { backgroundColor: '#FEE2E2', marginLeft: 8 }]}
+                        style={[styles.editButton, { flex: 1, backgroundColor: '#FEE2E2', alignItems: 'center' }]}
                         onPress={handleRemoveChild}
                         activeOpacity={0.7}>
-                        <Text style={[styles.editButtonText, { color: theme.colors.error }]}>Remove</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setDetailModalVisible(false)} style={{ marginLeft: 16 }}>
-                        <Text style={styles.closeX}>✕</Text>
+                        <Text style={[styles.editButtonText, { color: theme.colors.error }]}>Remove Child</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1325,16 +1331,33 @@ const styles = StyleSheet.create({
     padding: 28,
     height: '85%',
   },
-  detailHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  detailHeaderContainer: {
     marginBottom: 24,
   },
-  detailHeaderActions: {
+  detailTopRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  detailActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  closeButton: {
+    display: 'none',
+  },
+  floatingCloseButton: {
+    position: 'absolute',
+    top: 24,
+    right: 24,
+    zIndex: 10,
+    backgroundColor: '#F1F3F5',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'center',
   },
   editButton: {
     backgroundColor: theme.colors.primary,
