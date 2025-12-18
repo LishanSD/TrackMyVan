@@ -16,6 +16,7 @@ import {
 import {
   NotificationHandler,
   TripStartedNotification,
+  TripEndedNotification,
   NotificationCategory,
 } from '../types/notificationTypes';
 import { Trip } from '../types/types';
@@ -26,6 +27,18 @@ import { Trip } from '../types/types';
 const getTodayDateString = (): string => {
   const today = new Date();
   return today.toISOString().split('T')[0];
+};
+
+/**
+ * Helper to get milliseconds from Firestore timestamp or number
+ */
+const getMillis = (timestamp: any): number => {
+  if (!timestamp) return 0;
+  if (typeof timestamp === 'number') return timestamp;
+  if (typeof timestamp === 'object' && 'seconds' in timestamp) {
+    return timestamp.seconds * 1000 + (timestamp.nanoseconds || 0) / 1000000;
+  }
+  return 0;
 };
 
 /**
@@ -50,9 +63,10 @@ export const subscribeTripStatusChanges = (
   }
 
   // Track which trips we've already notified about to prevent duplicates
+  // Format: "tripId-status"
   const notifiedTrips = new Set<string>();
 
-  // Flag to suppress notifications on initial load (to avoid showing old in-progress trips)
+  // Flag to suppress notifications on initial load (unless recent)
   let isInitialLoad = true;
 
   const unsubscribers: Unsubscribe[] = [];
@@ -60,25 +74,21 @@ export const subscribeTripStatusChanges = (
   // Create a separate listener for each unique driver
   driverIds.forEach((driverId) => {
     const tripsRef = collection(firestore, 'trips');
+    const today = getTodayDateString();
+    
+    // Listen to ALL of today's trips for this driver
+    // We removed "status == IN_PROGRESS" so we can catch "COMPLETED" events too
     const q = query(
       tripsRef,
       where('driverId', '==', driverId),
-      where('status', '==', 'IN_PROGRESS')
+      where('date', '==', today)
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const today = getTodayDateString();
-
         snapshot.docChanges().forEach((change) => {
           const trip = { id: change.doc.id, ...change.doc.data() } as Trip;
-
-          // Only process trips from today (filter out old trips)
-          if (trip.date !== today) {
-            console.log('[TripNotificationService] Ignoring trip from different date:', trip.date);
-            return;
-          }
 
           // Check if any of parent's children are on this trip
           // children is an array of { childId, status } objects
@@ -92,32 +102,50 @@ export const subscribeTripStatusChanges = (
             return;
           }
 
-          // On initial load, just mark existing trips as notified without showing notification
-          // This prevents showing notifications for trips that were already in progress
-          if (isInitialLoad) {
-            const tripKey = `${trip.id}-${trip.status}`;
+          const tripKey = `${trip.id}-${trip.status}`;
+
+          // --- notification logic ---
+          const shouldNotify = () => {
+             // 1. If already notified, skip
+             if (notifiedTrips.has(tripKey)) return false;
+
+             // 2. If it's a new or modified document
+             if (change.type === 'added' || change.type === 'modified') {
+                
+                // 3. Special handling for Initial Load
+                if (isInitialLoad) {
+                  // Only notify if event happened recently (e.g., last 15 mins)
+                  const now = Date.now();
+                  const fifteenMinutes = 15 * 60 * 1000;
+                  
+                  let eventTime = 0;
+                  if (trip.status === 'IN_PROGRESS') {
+                     eventTime = getMillis(trip.startTime); 
+                  } else if (trip.status === 'COMPLETED') {
+                     eventTime = getMillis(trip.endTime); 
+                  }
+
+                  if (eventTime > 0 && (now - eventTime) < fifteenMinutes) {
+                     console.log('[TripNotificationService] Initial load - dispatching RECENT event:', trip.id);
+                     return true;
+                  }
+                  
+                  // Otherwise suppress old events on load
+                  console.log('[TripNotificationService] Initial load - suppressing old event:', trip.id);
+                  notifiedTrips.add(tripKey); // Mark as handled so we don't notify later
+                  return false;
+                }
+                
+                // 4. Normal operation (real-time updates)
+                return true;
+             }
+             return false;
+          };
+
+          if (shouldNotify()) {
+            // Mark as notified immediately
             notifiedTrips.add(tripKey);
-            console.log(
-              '[TripNotificationService] Initial load - suppressing notification for existing trip:',
-              trip.id
-            );
-            return;
-          }
 
-          // Only notify on new trips (added) or status changes (modified)
-          // Prevent duplicate notifications for the same trip
-          if (change.type === 'added' || change.type === 'modified') {
-            const tripKey = `${trip.id}-${trip.status}`;
-
-            if (notifiedTrips.has(tripKey)) {
-              // Already notified about this trip status
-              return;
-            }
-
-            // Mark as notified
-            notifiedTrips.add(tripKey);
-
-            // Detect trip start (status is IN_PROGRESS)
             if (trip.status === 'IN_PROGRESS') {
               const notification: TripStartedNotification = {
                 id: `trip-started-${trip.id}-${Date.now()}`,
@@ -131,34 +159,41 @@ export const subscribeTripStatusChanges = (
                 affectedChildIds: affectedChildren,
                 driverId: trip.driverId,
               };
-
               console.log('[TripNotificationService] Trip started notification:', notification);
+              onNotification(notification);
+            } 
+            else if (trip.status === 'COMPLETED') {
+               const notification: TripEndedNotification = {
+                id: `trip-ended-${trip.id}-${Date.now()}`,
+                timestamp: Date.now(),
+                category: NotificationCategory.TRIP,
+                type: 'TRIP_ENDED',
+                title: 'Trip Ended',
+                message: `${trip.type === 'MORNING' ? 'Morning' : 'Afternoon'} trip has ended`,
+                tripId: trip.id,
+                tripType: trip.type,
+                driverId: trip.driverId,
+              };
+              console.log('[TripNotificationService] Trip ended notification:', notification);
               onNotification(notification);
             }
           }
         });
 
         // After first snapshot, clear initial load flag
-        // This allows notifications for any future changes
         if (isInitialLoad) {
           isInitialLoad = false;
-          console.log(
-            '[TripNotificationService] Initial load complete, now monitoring for new changes'
-          );
+          console.log('[TripNotificationService] Initial load complete');
         }
       },
       (error) => {
-        console.error(
-          `[TripNotificationService] Error listening to driver ${driverId} trips:`,
-          error
-        );
+        console.error(`[TripNotificationService] Error listening to driver ${driverId} trips:`, error);
       }
     );
 
     unsubscribers.push(unsubscribe);
   });
 
-  // Return combined unsubscribe function
   return () => {
     console.log('[TripNotificationService] Unsubscribing from all driver trip listeners');
     unsubscribers.forEach((unsub) => unsub());

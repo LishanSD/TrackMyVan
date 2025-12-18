@@ -74,7 +74,7 @@ export const subscribeChildStatusChanges = (
   // Track previous status for each child to detect changes
   const statusCache = new Map<string, ChildStatus>();
 
-  // Flag to suppress notifications on initial load
+  // Flag to suppress notifications on initial load (unless recent)
   let isInitialLoad = true;
 
   childIds.forEach((childId) => {
@@ -103,116 +103,109 @@ export const subscribeChildStatusChanges = (
         // Update cache
         statusCache.set(childId, currentStatus);
 
-        // On initial load, just cache the status without notifying
-        if (isInitialLoad) {
-          console.log(
-            '[ChildStatusNotificationService] Initial load - caching status for child:',
-            childId
-          );
-          return;
-        }
+        // --- Notification Trigger Logic ---
+        const checkAndNotify = (
+          type: 'MORNING_PICKUP' | 'SCHOOL_DROPOFF' | 'SCHOOL_PICKUP' | 'HOME_DROPOFF',
+          current: PickupStatus,
+          prev: PickupStatus | undefined
+        ) => {
+          // 1. Check if status is COMPLETED
+          if (current.status !== 'COMPLETED') return;
 
-        // --- Morning Trip Notifications ---
-        
-        // 1. Morning Pickup
-        if (
-          currentStatus.morningPickup.status === 'COMPLETED' &&
-          previousStatus?.morningPickup.status !== 'COMPLETED'
-        ) {
-          const notification: ChildPickedUpNotification = {
-            id: `pickup-morning-${childId}-${Date.now()}`,
-            timestamp: Date.now(),
-            category: NotificationCategory.PICKUP,
-            type: 'CHILD_PICKED_UP',
-            title: 'Child Picked Up',
-            message: `${childNames.get(childId) || 'Your child'} has been picked up`,
-            childId,
-            childName: childNames.get(childId),
-            location: currentStatus.morningPickup.location,
-            pickupType: 'MORNING',
-          };
+          // 2. Check if it's a NEW completion (real-time) OR a RECENT completion (initial load)
+          const isNewCompletion = prev?.status !== 'COMPLETED';
+          
+          let shouldNotify = false;
 
-          console.log(
-            '[ChildStatusNotificationService] Morning pickup notification:',
-            notification
-          );
-          onNotification(notification);
-        }
+          if (isInitialLoad) {
+            // On initial load, only notify if it happened in the last 15 minutes
+            const now = Date.now();
+            const fifteenMinutes = 15 * 60 * 1000;
+            const eventTime = current.time || 0;
 
-        // 2. School Dropoff (Morning Trip End)
-        // Ensure we check specifically for the transition to COMPLETED
-        if (
-          currentStatus.schoolDropoff.status === 'COMPLETED' &&
-          previousStatus?.schoolDropoff.status !== 'COMPLETED'
-        ) {
-          const notification: ChildDroppedOffNotification = {
-            id: `dropoff-school-${childId}-${Date.now()}`,
-            timestamp: Date.now(),
-            category: NotificationCategory.DROPOFF,
-            type: 'CHILD_DROPPED_OFF',
-            title: 'Child Dropped Off',
-            message: `${childNames.get(childId) || 'Your child'} has been dropped off at school`,
-            childId,
-            childName: childNames.get(childId),
-            location: currentStatus.schoolDropoff.location,
-            dropoffType: 'SCHOOL',
-          };
+            if (eventTime > 0 && (now - eventTime) < fifteenMinutes) {
+              console.log(`[ChildStatusNotificationService] Initial load - dispatching RECENT ${type} for child:`, childId);
+              shouldNotify = true;
+            }
+          } else {
+             // Real-time update: notify if it just changed to COMPLETED
+             if (isNewCompletion) {
+               console.log(`[ChildStatusNotificationService] Real-time update - dispatching ${type} for child:`, childId);
+               shouldNotify = true;
+             }
+          }
 
-          console.log(
-            '[ChildStatusNotificationService] School dropoff notification TRIGGERED:',
-            notification
-          );
-          onNotification(notification);
-        }
+          if (!shouldNotify) return;
 
-        // --- Afternoon Trip Notifications ---
+          // Dispatch specific notification based on type
+          if (type === 'MORNING_PICKUP') {
+             const notification: ChildPickedUpNotification = {
+              id: `pickup-morning-${childId}-${current.time || Date.now()}`,
+              timestamp: current.time || Date.now(),
+              category: NotificationCategory.PICKUP,
+              type: 'CHILD_PICKED_UP',
+              title: 'Child Picked Up',
+              message: `${childNames.get(childId) || 'Your child'} has been picked up`,
+              childId,
+              childName: childNames.get(childId),
+              location: current.location,
+              pickupType: 'MORNING',
+            };
+            onNotification(notification);
+          } 
+          else if (type === 'SCHOOL_DROPOFF') {
+             const notification: ChildDroppedOffNotification = {
+              id: `dropoff-school-${childId}-${current.time || Date.now()}`,
+              timestamp: current.time || Date.now(),
+              category: NotificationCategory.DROPOFF,
+              type: 'CHILD_DROPPED_OFF',
+              title: 'Child Dropped Off',
+              message: `${childNames.get(childId) || 'Your child'} has been dropped off at school`,
+              childId,
+              childName: childNames.get(childId),
+              location: current.location,
+              dropoffType: 'SCHOOL',
+            };
+            onNotification(notification);
+          }
+          else if (type === 'SCHOOL_PICKUP') {
+             const notification: ChildPickedUpNotification = {
+              id: `pickup-afternoon-${childId}-${current.time || Date.now()}`,
+              timestamp: current.time || Date.now(),
+              category: NotificationCategory.PICKUP,
+              type: 'CHILD_PICKED_UP',
+              title: 'Child Picked Up',
+              message: `${childNames.get(childId) || 'Your child'} has been picked up from school`,
+              childId,
+              childName: childNames.get(childId),
+              location: current.location,
+              pickupType: 'AFTERNOON',
+            };
+            onNotification(notification);
+          }
+          else if (type === 'HOME_DROPOFF') {
+             const notification: ChildDroppedOffNotification = {
+              id: `dropoff-home-${childId}-${current.time || Date.now()}`,
+              timestamp: current.time || Date.now(),
+              category: NotificationCategory.DROPOFF,
+              type: 'CHILD_DROPPED_OFF',
+              title: 'Child Dropped Off',
+              message: `${childNames.get(childId) || 'Your child'} has been dropped off at home`,
+              childId,
+              childName: childNames.get(childId),
+              location: current.location,
+              dropoffType: 'HOME',
+            };
+            onNotification(notification);
+          }
+        };
 
-        // 3. School Pickup (Afternoon Trip Start)
-        if (
-          currentStatus.schoolPickup.status === 'COMPLETED' &&
-          previousStatus?.schoolPickup.status !== 'COMPLETED'
-        ) {
-          const notification: ChildPickedUpNotification = {
-            id: `pickup-afternoon-${childId}-${Date.now()}`,
-            timestamp: Date.now(),
-            category: NotificationCategory.PICKUP,
-            type: 'CHILD_PICKED_UP',
-            title: 'Child Picked Up',
-            message: `${childNames.get(childId) || 'Your child'} has been picked up from school`,
-            childId,
-            childName: childNames.get(childId),
-            location: currentStatus.schoolPickup.location,
-            pickupType: 'AFTERNOON',
-          };
+        // Check all 4 status types
+        checkAndNotify('MORNING_PICKUP', currentStatus.morningPickup, previousStatus?.morningPickup);
+        checkAndNotify('SCHOOL_DROPOFF', currentStatus.schoolDropoff, previousStatus?.schoolDropoff);
+        checkAndNotify('SCHOOL_PICKUP', currentStatus.schoolPickup, previousStatus?.schoolPickup);
+        checkAndNotify('HOME_DROPOFF', currentStatus.homeDropoff, previousStatus?.homeDropoff);
 
-          console.log(
-            '[ChildStatusNotificationService] Afternoon pickup notification:',
-            notification
-          );
-          onNotification(notification);
-        }
-
-        // 4. Home Dropoff (Afternoon Trip End)
-        if (
-          currentStatus.homeDropoff.status === 'COMPLETED' &&
-          previousStatus?.homeDropoff.status !== 'COMPLETED'
-        ) {
-          const notification: ChildDroppedOffNotification = {
-            id: `dropoff-home-${childId}-${Date.now()}`,
-            timestamp: Date.now(),
-            category: NotificationCategory.DROPOFF,
-            type: 'CHILD_DROPPED_OFF',
-            title: 'Child Dropped Off',
-            message: `${childNames.get(childId) || 'Your child'} has been dropped off at home`,
-            childId,
-            childName: childNames.get(childId),
-            location: currentStatus.homeDropoff.location,
-            dropoffType: 'HOME',
-          };
-
-          console.log('[ChildStatusNotificationService] Home dropoff notification:', notification);
-          onNotification(notification);
-        }
       },
       (error) => {
         console.error(
