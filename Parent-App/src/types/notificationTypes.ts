@@ -13,6 +13,7 @@ export enum NotificationCategory {
   MESSAGE = 'MESSAGE',
   APPROVAL = 'APPROVAL',
   SYSTEM = 'SYSTEM',
+  ATTENDANCE = 'ATTENDANCE',
 }
 
 // Base notification interface
@@ -93,12 +94,22 @@ export interface StudentRejectedNotification extends BaseNotification {
   studentName?: string;
 }
 
+// Child not attended notifications
+export interface ChildNotAttendedNotification extends BaseNotification {
+  category: NotificationCategory.ATTENDANCE;
+  type: 'CHILD_NOT_ATTENDED';
+  childId: string;
+  childName?: string;
+  time?: number;
+}
+
 // Union type of all notifications
 export type Notification =
   | TripStartedNotification
   | TripEndedNotification
   | ChildPickedUpNotification
   | ChildDroppedOffNotification
+  | ChildNotAttendedNotification
   | NewMessageNotification
   | StudentApprovedNotification
   | StudentRejectedNotification;
@@ -133,6 +144,12 @@ export const getNotificationStyle = (category: NotificationCategory): Notificati
         iconColor: '#fff',
         icon: '🏠',
       };
+    case NotificationCategory.ATTENDANCE:
+      return {
+        backgroundColor: '#f59e0b', // amber/orange
+        iconColor: '#fff',
+        icon: '⚠️',
+      };
     case NotificationCategory.DRIVER:
       return {
         backgroundColor: '#f59e0b', // amber
@@ -156,6 +173,12 @@ export const getNotificationStyle = (category: NotificationCategory): Notificati
         backgroundColor: '#6b7280', // gray
         iconColor: '#fff',
         icon: 'ℹ️',
+      };
+    default:
+       return {
+        backgroundColor: '#6b7280',
+        iconColor: '#fff',
+        icon: '🔔',
       };
   }
 };

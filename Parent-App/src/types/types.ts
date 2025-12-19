@@ -82,7 +82,7 @@ export interface Trip {
 
 // Individual pickup/dropoff status
 export interface PickupStatus {
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED' | 'NOT_ATTENDED';
   time?: number; // timestamp
   location?: Location;
 }

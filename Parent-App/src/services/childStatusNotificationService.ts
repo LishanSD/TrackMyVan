@@ -10,6 +10,7 @@ import {
   NotificationHandler,
   ChildPickedUpNotification,
   ChildDroppedOffNotification,
+  ChildNotAttendedNotification,
   NotificationCategory,
 } from '../types/notificationTypes';
 import { ChildStatus, PickupStatus } from '../types/types';
@@ -109,11 +110,14 @@ export const subscribeChildStatusChanges = (
           current: PickupStatus,
           prev: PickupStatus | undefined
         ) => {
-          // 1. Check if status is COMPLETED
-          if (current.status !== 'COMPLETED') return;
+          // 1. Check if status is COMPLETED or NOT_ATTENDED
+          const isCompleted = current.status === 'COMPLETED';
+          const isNotAttended = current.status === 'NOT_ATTENDED';
+          
+          if (!isCompleted && !isNotAttended) return;
 
-          // 2. Check if it's a NEW completion (real-time) OR a RECENT completion (initial load)
-          const isNewCompletion = prev?.status !== 'COMPLETED';
+          // 2. Check if it's a NEW status (real-time) OR a RECENT status (initial load)
+          const isNewStatus = prev?.status !== current.status;
           
           let shouldNotify = false;
 
@@ -124,20 +128,36 @@ export const subscribeChildStatusChanges = (
             const eventTime = current.time || 0;
 
             if (eventTime > 0 && (now - eventTime) < fifteenMinutes) {
-              console.log(`[ChildStatusNotificationService] Initial load - dispatching RECENT ${type} for child:`, childId);
+              console.log(`[ChildStatusNotificationService] Initial load - dispatching RECENT ${current.status} (${type}) for child:`, childId);
               shouldNotify = true;
             }
           } else {
-             // Real-time update: notify if it just changed to COMPLETED
-             if (isNewCompletion) {
-               console.log(`[ChildStatusNotificationService] Real-time update - dispatching ${type} for child:`, childId);
+             // Real-time update: notify if it just changed
+             if (isNewStatus) {
+               console.log(`[ChildStatusNotificationService] Real-time update - dispatching ${current.status} (${type}) for child:`, childId);
                shouldNotify = true;
              }
           }
 
           if (!shouldNotify) return;
 
-          // Dispatch specific notification based on type
+          // Dispatch specific notification based on type/status
+          if (isNotAttended) {
+             const notification: ChildNotAttendedNotification = {
+              id: `not-attended-${childId}-${current.time || Date.now()}`,
+              timestamp: current.time || Date.now(),
+              category: NotificationCategory.ATTENDANCE,
+              type: 'CHILD_NOT_ATTENDED',
+              title: 'Child Not Attended',
+              message: `${childNames.get(childId) || 'Your child'} was marked as not attended`,
+              childId,
+              childName: childNames.get(childId),
+              time: current.time,
+            };
+            onNotification(notification);
+            return; 
+          }
+
           if (type === 'MORNING_PICKUP') {
              const notification: ChildPickedUpNotification = {
               id: `pickup-morning-${childId}-${current.time || Date.now()}`,
