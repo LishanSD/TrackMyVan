@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "van_locations": {
+      "$driverId": {
+        ".write": "auth != null && auth.uid == $driverId",
+        ".read": "auth != null" 
+      }
+    },
+    ".read": true,
+    ".write": true,
+    "trips": {
+      ".indexOn": ["driverId", "date"]
+    },
+    "events": {
+      ".indexOn": ["childId", "tripId", "driverId"]
+    },
+    "announcements": {
+      ".indexOn": ["date"]
+    }
+  }
+}

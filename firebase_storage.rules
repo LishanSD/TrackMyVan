@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Profile pictures - allow authenticated users to read and write
+    match /profile-pics/{allPaths=**} {
+      // Allow read access to all authenticated users
+      allow read: if request.auth != null;
+      
+      // Allow write access to authenticated users with restrictions
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024  // 5MB limit
+                   && request.resource.contentType.matches('image/(jpeg|png|jpg)');
+    }
+    
+    // Children profile pictures - allow authenticated users to read and write
+    match /child-profile-pics/{allPaths=**} {
+      // Allow read access to all authenticated users
+      allow read: if request.auth != null;
+      
+      // Allow write access to authenticated users with restrictions
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024  // 5MB limit
+                   && request.resource.contentType.matches('image/(jpeg|png|jpg)');
+    }
+    
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
